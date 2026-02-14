@@ -99,7 +99,8 @@ def serve():
         "--port", str(config.VLLM_PORT),
     ]
     print("Starting vLLM:", " ".join(cmd))
-    subprocess.Popen(" ".join(cmd), shell=True)
+    # Use subprocess.run() to block until vLLM exits (keeps the web server alive)
+    subprocess.run(" ".join(cmd), shell=True)
 
 
 def voice_to_text(
