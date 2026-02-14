@@ -99,6 +99,7 @@ def summarize_videos(paths: list[tuple[str, str]], storage_dict) -> dict:
 
 if __name__ == "__main__":
     import time
+    '''
     import threading
 
     start = time.perf_counter()
@@ -122,3 +123,4 @@ if __name__ == "__main__":
 
     print("Final result:", result)
     print(time.perf_counter() - start)
+    '''

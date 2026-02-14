@@ -7,6 +7,11 @@ import json
 import os
 from fastapi.responses import StreamingResponse
 import time
+from fastapi import FastAPI, Body
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+import time
 
 app = FastAPI()
 
@@ -21,9 +26,11 @@ app.add_middleware(
 global USE_CACHE
 USE_CACHE = False
 
+global STORAGE_DICT
+STORAGE_DICT = {}
 
 @app.post("/send_urls", status_code=204)
-def send_urls(raw_urls: list[str]):
+def send_urls(raw_urls: list[str] = Body(...)):
     print(raw_urls)
     uncached_urls = []
     if USE_CACHE:
@@ -44,7 +51,7 @@ def send_urls(raw_urls: list[str]):
             uncached_urls.append(raw_url)
     paths = download_videos_batch(uncached_urls)
     summary_inputs = [(path, url) for path, url in zip(paths, uncached_urls)]
-    summaries = summarize_videos(summary_inputs)
+    summaries = summarize_videos(summary_inputs, STORAGE_DICT)
     for path in summaries.keys():
         # path is "VIDEO_ID.mp4", extract video_id
         video_id = path.removesuffix(".mp4")
