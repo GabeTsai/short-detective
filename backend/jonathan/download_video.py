@@ -1,5 +1,5 @@
 from pytubefix import YouTube
-from pytubefix.exceptions import VideoUnavailable, AgeRestrictedError
+import subprocess
 import os
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -19,59 +19,68 @@ def video_id_from_url(url: str) -> str:
     return re.sub(r"[^a-zA-Z0-9_-]", "_", url.split("/")[-1].split("?")[0]) or "video"
 
 
-def download_video_max_720p(url, download_path="videos"):
+def download_video_max_720p(url, download_path="videos", duration=30):
     """
-    Downloads a video, searching only for progressive streams
-    (audio+video together), at 180p / lowest resolution for fastest download.
+    Downloads the first `duration` seconds of a video using pytubefix + ffmpeg.
+    Skips if already downloaded. Uses lowest progressive stream for speed.
+    Returns filename (e.g., "VIDEO_ID.mp4") or None on failure.
     """
     try:
-        # 1. Ensure the download directory exists
-        if not os.path.exists(download_path):
-            os.makedirs(download_path)
-            print(f"Directory created: {download_path}")
+        os.makedirs(download_path, exist_ok=True)
 
-        # 2. Get the YouTube object
-        video = YouTube(url)
-        print(f"\nSearching (180p / lowest): {video.title}")
+        video_id = video_id_from_url(url)
+        filename = f"{video_id}.mp4"
+        output_path = os.path.join(download_path, filename)
 
-        # 3. Select lowest resolution progressive stream (180p, 144p, or 240p typically)
-        stream = video.streams.filter(
-            progressive=True,
-            file_extension='mp4'
-        ).order_by('resolution').asc().first()
-
-        if stream:
-            video_id = video_id_from_url(url)
-            filename = f"{video_id}.mp4"
-            print(f"Stream found: {stream.resolution} (Progressive, with audio)")
-            print("Starting download...")
-            stream.download(output_path=download_path, filename=filename)
-            print(f"Download complete! Saved in '{download_path}'")
+        if os.path.exists(output_path):
+            print(f"Already exists: {output_path}")
             return filename
-        else:
-            print("Error: No progressive stream found (mp4 with audio and video).")
+
+        yt = YouTube(url)
+        stream = (
+            yt.streams
+              .filter(progressive=True, file_extension="mp4")
+              .order_by("resolution")
+              .first()
+        )
+
+        if stream is None:
+            print(f"Error downloading {url}: No progressive MP4 stream found.")
             return None
 
-    except AgeRestrictedError:
-        print(f"Error: The video is age-restricted and cannot be downloaded.")
-        return None
-    except VideoUnavailable:
-        print(f"Error: The video is unavailable, private, or has been deleted.")
-        return None
+        result = subprocess.run(
+            [
+                "ffmpeg", "-y",
+                "-ss", "0",
+                "-t", str(duration),
+                "-i", stream.url,
+                "-c", "copy",
+                output_path,
+            ],
+            capture_output=True, text=True,
+        )
+
+        if result.returncode != 0:
+            print(f"Error downloading {url}: {result.stderr.strip()}")
+            return None
+
+        print(f"Downloaded (first {duration}s): {output_path}")
+        return filename
+
     except Exception as e:
         print(f"An unexpected error occurred: {type(e).__name__} - {e}")
         return None
 
 
-def download_videos_batch(urls, download_path="videos", n=10):
+def download_videos_batch(urls, download_path="videos", n=10, duration=30):
     """
-    Downloads multiple videos in parallel (180p / lowest resolution) using n threads.
+    Downloads the first `duration` seconds of multiple videos in parallel using n threads.
     Returns a list of downloaded filenames (None for failures).
     """
     filenames = []
     with ThreadPoolExecutor(max_workers=n) as executor:
         futures = {
-            executor.submit(download_video_max_720p, url, download_path): url
+            executor.submit(download_video_max_720p, url, download_path, duration): url
             for url in urls
         }
         for future in as_completed(futures):
@@ -83,7 +92,23 @@ def download_videos_batch(urls, download_path="videos", n=10):
             except Exception as e:
                 print(f"Failed for {url}: {e}")
     return filenames
-    
+
+
 if __name__ == "__main__":
     # RFK fat gay kids
-    download_videos_batch(["https://www.youtube.com/shorts/EaDxKdpvMhc"])
+    import time
+
+    video_urls = [
+        "https://www.youtube.com/shorts/jEDcdCP-Psc",
+        "https://www.youtube.com/shorts/52J14uYn2sk",
+        "https://www.youtube.com/shorts/EaDxKdpvMhc", 
+        "https://www.youtube.com/shorts/7cXrS2KqKMY",
+        "https://www.youtube.com/shorts/l2UjV7QbUq0", 
+        "https://www.youtube.com/shorts/HZ5V1oKRONQ", 
+        "https://www.youtube.com/shorts/t4Sx9bxq9AU", 
+        "https://www.youtube.com/shorts/4Q2ErSJjSIo"
+    ]
+    start = time.perf_counter()
+    download_videos_batch(video_urls)
+    end = time.perf_counter()
+    print(f"Time taken: {end - start} seconds")
