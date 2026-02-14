@@ -206,3 +206,6 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 backend/jonathan/videos/
+
+# any test data
+test_data/
