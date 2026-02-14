@@ -3,10 +3,11 @@ from download_video import download_videos_batch, video_id_from_url
 from summarize_videos import summarize_videos
 import argparse
 import json
+import os
 
 app = FastAPI()
 global USE_CACHE
-USE_CACHE = False
+USE_CACHE = True
 
 
 @app.post("/send_urls", status_code=204)
@@ -17,7 +18,7 @@ def send_urls(raw_urls: list[str]):
         try:
             with open("cache.json", "r") as f:
                 cache = json.load(f)
-        except exception as e:
+        except Exception as e:
             print(f"Error loading cache: {e}")
             cache = {}
     else:
@@ -27,7 +28,8 @@ def send_urls(raw_urls: list[str]):
         if video_id not in cache:
             uncached_urls.append(raw_url)
     paths = download_videos_batch(uncached_urls)
-    summaries = summarize_videos(paths)
+    summary_inputs = [(path, url) for path, url in zip(paths, uncached_urls)]
+    summaries = summarize_videos(summary_inputs)
     for path in summaries.keys():
         # path is "VIDEO_ID.mp4", extract video_id
         video_id = path.removesuffix(".mp4")
@@ -49,25 +51,20 @@ def root():
 def get_info(url: str):
     """Get cached info for a video URL."""
     video_id = video_id_from_url(url)
-
+    video_id = os.path.join("videos", video_id)
     try:
         with open("cache.json", "r") as f:
             cache = json.load(f)
     except FileNotFoundError:
         return {"message": "Cache not found"}
-
+    print(video_id)
+    print(cache.keys())
     if video_id in cache:
         return {"message": cache[video_id]}
     else:
         return {"message": f"Video {video_id} not in cache"}
 
     return {"message": "Video not in cache", "is_streaming": True}
-
-from fastapi import FastAPI
-from fastapi.responses import StreamingResponse
-import time
-
-app = FastAPI()
 
 
 def hi_stream():

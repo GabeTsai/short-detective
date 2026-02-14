@@ -104,32 +104,36 @@ def scrape_channel_about(channel_url):
 
 
 def scrape_channel_videos(channel_url, limit=10):
-    """Scrape video titles and URLs from a channel."""
-    videos_url = channel_url.rstrip("/") + "/videos"
+    """Scrape video and shorts titles and URLs from a channel."""
+    all_content = []
 
-    result = subprocess.run(
-        [
-            "yt-dlp", "--dump-json", "--flat-playlist",
-            "--playlist-end", str(limit),
-            videos_url,
-        ],
-        capture_output=True, text=True
-    )
-    if result.returncode != 0:
-        print(f"Error scraping channel videos: {result.stderr.strip()}")
-        sys.exit(1)
+    # Try both /videos and /shorts tabs
+    for tab in ["videos", "shorts"]:
+        tab_url = channel_url.rstrip("/") + "/" + tab
 
-    videos = []
-    for line in result.stdout.strip().split("\n"):
-        if not line:
+        result = subprocess.run(
+            [
+                "yt-dlp", "--dump-json", "--flat-playlist",
+                "--playlist-end", str(limit),
+                tab_url,
+            ],
+            capture_output=True, text=True
+        )
+        if result.returncode != 0:
+            print(f"Warning: Could not scrape {tab} tab: {result.stderr.strip()}")
             continue
-        entry = json.loads(line)
-        videos.append({
-            "title": entry.get("title"),
-            "url": entry.get("url") or f"https://www.youtube.com/watch?v={entry.get('id')}",
-        })
 
-    return videos
+        for line in result.stdout.strip().split("\n"):
+            if not line:
+                continue
+            entry = json.loads(line)
+            all_content.append({
+                "title": entry.get("title"),
+                "url": entry.get("url") or f"https://www.youtube.com/watch?v={entry.get('id')}",
+                "type": tab,
+            })
+
+    return all_content
 
 
 def scrape_channel(short_url, video_limit=10):

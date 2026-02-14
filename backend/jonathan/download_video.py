@@ -127,7 +127,7 @@ def download_videos_batch(urls, download_path="videos", n=10, duration=30):
             try:
                 name = future.result()
                 if name is not None:
-                    filenames.append(name)
+                    filenames.append(os.path.join(download_path, name))
             except Exception as e:
                 print(f"Failed for {url}: {e}")
     return filenames
@@ -148,6 +148,7 @@ if __name__ == "__main__":
         "https://www.youtube.com/shorts/4Q2ErSJjSIo"
     ]
     start = time.perf_counter()
-    download_videos_batch(video_urls)
+    x = download_videos_batch(video_urls)
+    print(x)
     end = time.perf_counter()
     print(f"Time taken: {end - start} seconds")
