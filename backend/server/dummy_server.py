@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -20,10 +20,17 @@ app.add_middleware(
 )
 
 
+#@app.post("/send_urls", status_code=204)
+#def send_urls(urls: list[str]):
+#    """Accepts a list of URL strings. Returns nothing."""
+#    pass
+
 @app.post("/send_urls", status_code=204)
-def send_urls(body: SendUrlsBody):
-    """Accepts a body with urls list. Returns nothing."""
-    pass
+def send_urls(urls: list[str] = Body(...)):
+    """Accepts a list of URL strings from the Chrome extension."""
+    print(f"\nReceived {len(urls)} URLs:")
+    for i, url in enumerate(urls, 1):
+        print(f"  {i}. {url}") 
 
 
 @app.get("/")

@@ -5,6 +5,7 @@ let queue = [];              // ordered upcoming urls
 let seen = new Set();        // de-dup across sessions
 
 const TARGET = 20;
+const BACKEND_URL = "http://localhost:8080";
 
 function norm(url) {
   try {
@@ -54,6 +55,29 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       queue = queue.filter(x => x !== watched);
       broadcastQueue();
       sendResponse({ ok: true, queue });
+      return;
+    }
+
+    if (msg.type === "SEND_TO_BACKEND") {
+      const urls = msg.urls || [];
+      console.log(`[YTSS BG] Sending ${urls.length} URLs to backend...`);
+      try {
+        const res = await fetch(`${BACKEND_URL}/send_urls`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(urls)
+        });
+        if (res.ok) {
+          console.log("[YTSS BG] ✓ URLs sent to backend");
+          sendResponse({ ok: true });
+        } else {
+          console.error(`[YTSS BG] ✗ Backend responded ${res.status}`);
+          sendResponse({ ok: false, error: `Backend status ${res.status}` });
+        }
+      } catch (err) {
+        console.error("[YTSS BG] ✗ Backend unreachable:", err.message);
+        sendResponse({ ok: false, error: err.message });
+      }
       return;
     }
   })();
