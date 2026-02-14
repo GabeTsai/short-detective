@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from download_video import download_videos_batch, video_id_from_url
 from summarize_videos import summarize_videos
 import argparse
@@ -8,6 +9,15 @@ from fastapi.responses import StreamingResponse
 import time
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 global USE_CACHE
 USE_CACHE = False
 
