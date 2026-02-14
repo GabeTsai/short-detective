@@ -1,12 +1,14 @@
 from fastapi import FastAPI
-
+from download_video import download_videos_batch
 app = FastAPI()
 
 
 @app.post("/send_urls", status_code=204)
 def send_urls(urls: list[str]):
+    print(urls)
     """Accepts a list of URL strings. Returns nothing."""
-    pass
+    paths = download_videos_batch(urls)
+    print(paths)
 
 
 @app.get("/")
