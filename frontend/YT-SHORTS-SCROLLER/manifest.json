@@ -1,0 +1,16 @@
+{
+    "manifest_version": 3,
+    "name": "Shorts Scroller + URL Collector",
+    "version": "0.2.0",
+    "permissions": ["storage", "tabs", "scripting"],
+    "host_permissions": ["https://www.youtube.com/*"],
+    "background": { "service_worker": "background.js" },
+    "content_scripts": [
+      {
+        "matches": ["https://www.youtube.com/shorts/*"],
+        "js": ["content.js"],
+        "css": ["ui.css"],
+        "run_at": "document_idle"
+      }
+    ]
+  }
