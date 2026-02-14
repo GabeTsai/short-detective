@@ -1,25 +1,31 @@
 """Backend package for short-detective.
 
 Example usage:
+    from backend import transcribe
+    
+    # Easy way: automatically uses TRANSCRIPTION_URL from .env
+    text = transcribe("audio.mp3")
+    
+    # With specific language
+    text = transcribe("audio.mp3", language="es")
+    
+    # Advanced usage with explicit URL
     from backend import voice_to_text, config
-    
-    # Get the transcription URL from config
     url = config.get_transcription_url()
-    
-    # Transcribe an audio file
-    text = voice_to_text("/path/to/audio.mp3", url, language="en")
+    text = voice_to_text("audio.mp3", url, language="en")
 """
 
 # Import config module for easy access
 from backend import config
 
 # Import voice-to-text functionality
-from backend.voice_to_text import voice_to_text, app, serve
+from backend.voice_to_text import voice_to_text, transcribe, app, serve
 
 # Define public API
 __all__ = [
     "config",
-    "voice_to_text",
+    "transcribe",        # Convenience function (recommended)
+    "voice_to_text",     # Advanced usage
     "app",
     "serve",
 ]

@@ -15,19 +15,21 @@ load_dotenv(_PROJECT_ROOT / ".env")
 
 # -----------------------------------------------------------------------------
 # Voice-to-text / Voxtral (self-hosted vLLM on Modal)
-# Using Voxtral Mini 4B Realtime for fast, low-latency transcription
-# See https://huggingface.co/mistralai/Voxtral-Mini-4B-Realtime-2602
+# Using Voxtral Mini 3B for batch transcription
+# See https://huggingface.co/mistralai/Voxtral-Mini-3B-2507
+# Note: Use Voxtral-Mini-3B for batch, Voxtral-Mini-4B-Realtime for streaming
 # -----------------------------------------------------------------------------
 
-VOXTRAL_MODEL_ID: str = "mistralai/Voxtral-Mini-4B-Realtime-2602"
-"""Hugging Face model id for Voxtral Mini 4B Realtime (4B)."""
+VOXTRAL_MODEL_ID: str = "mistralai/Voxtral-Mini-3B-2507"
+"""Hugging Face model id for Voxtral Mini 3B (batch transcription).
+Note: Use 3B for batch transcription, 4B-Realtime for streaming only."""
 
 VOXTRAL_N_GPU: int = 1
-"""Number of GPUs for vLLM (Realtime model is 4B, needs ~16GB memory)."""
+"""Number of GPUs for vLLM (3B model needs ~10GB memory)."""
 
 VOXTRAL_GPU_TYPE: str = "H100"
-"""GPU type for Modal (e.g. H100, A100, A10G). Realtime model can run on smaller GPUs.
-Note: H100 recommended for best performance with compilation. A100 also works well.
+"""GPU type for Modal (e.g. H100, A100, A10G). 3B model can run on smaller GPUs.
+Note: H100 recommended for best performance. A100, A10G also work well.
 """
 
 VLLM_PORT: int = 8000
@@ -155,7 +157,8 @@ Rate the video on these dimensions (Low/Medium/High):
 - Who might be vulnerable to this content?
 - Recommended actions (verify claims, check sources, seek alternative perspectives, etc.)
 
-Be thorough, specific, and critical. If content appears benign, say so clearly. If it raises red flags, identify them explicitly with evidence.
+Be thorough, specific, and critical, but limit your response to 15-20 sentences (around 300 words). 
+If content appears benign, say so clearly. If it raises red flags, identify them explicitly with evidence.
 """
 
 SEMANTIC_ANALYSIS_QUICK_PROMPT: str = """
