@@ -63,3 +63,7 @@ watchfiles==1.1.1
 websockets==15.0.1
 yarl==1.22.0
 yt-dlp==2025.10.14
+modal
+openai>=1.0.0
+mistral-common[audio]>=1.8.1
+python-dotenv>=1.0.0
