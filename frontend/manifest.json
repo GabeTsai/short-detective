@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "Short Detective",
+  "version": "0.1.0",
+  "description": "Analyze YouTube Shorts and see what's coming next",
+  "permissions": [
+    "activeTab",
+    "storage"
+  ],
+  "host_permissions": [
+    "http://localhost:8080/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Short Detective"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://www.youtube.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["inject.js"],
+      "matches": ["*://www.youtube.com/*"]
+    }
+  ]
+}
