@@ -1,32 +1,57 @@
 (function () {
   'use strict';
 
-  const analyzeBtn = document.getElementById('analyze');
+  const startBtn = document.getElementById('start');
   const resultEl = document.getElementById('result');
 
-  function showResult(text, isError = false) {
+  function showResult(text, type = 'info') {
     resultEl.textContent = text;
     resultEl.hidden = false;
-    resultEl.classList.toggle('error', isError);
+    resultEl.classList.remove('error', 'success');
+    if (type === 'error') resultEl.classList.add('error');
+    if (type === 'success') resultEl.classList.add('success');
   }
 
   function hideResult() {
     resultEl.hidden = true;
-    resultEl.classList.remove('error');
+    resultEl.classList.remove('error', 'success');
   }
 
-  analyzeBtn.addEventListener('click', async () => {
+  function setLoading(loading) {
+    startBtn.disabled = loading;
+    startBtn.textContent = loading ? 'Working...' : 'Start';
+  }
+
+  startBtn.addEventListener('click', async () => {
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
       if (!tab?.url) {
-        showResult('No active tab or URL.', true);
+        showResult('No active tab or URL.', 'error');
         return;
       }
+
+      if (!tab.url.includes('youtube.com/shorts')) {
+        showResult('Please navigate to a YouTube Shorts page first.', 'error');
+        return;
+      }
+
       hideResult();
-      // TODO: call backend or local logic to analyze tab.url
-      showResult(`URL: ${tab.url}`);
+      setLoading(true);
+      showResult('Extracting Shorts URLs...');
+
+      const response = await chrome.tabs.sendMessage(tab.id, { type: 'START' });
+
+      if (response?.ok) {
+        const count = response.urlCount || 0;
+        showResult(`Done! Found and sent ${count} Shorts URL${count !== 1 ? 's' : ''}.`, 'success');
+      } else {
+        showResult(response?.error || 'Something went wrong.', 'error');
+      }
     } catch (err) {
-      showResult(err.message || 'Something went wrong.', true);
+      showResult(err.message || 'Something went wrong.', 'error');
+    } finally {
+      setLoading(false);
     }
   });
 })();
