@@ -8,8 +8,14 @@ python3 server.py
 In other tab: 
 
 ```
-curl -X POST http://localhost:8000/send_urls \
+curl -X POST http://localhost:8080/send_urls \
   -H "Content-Type: application/json" \
   -d '["https://www.youtube.com/shorts/AVeuGFSSAxQ", "https://www.youtube.com/shorts/35KWWdck7zM"]'
 
+```
+
+After that's done, test with 
+
+```
+curl "http://localhost:8080/get-info?url=https://www.youtube.com/shorts/35KWWdck7zM"
 ```
