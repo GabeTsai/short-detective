@@ -7,7 +7,7 @@ import os
 
 app = FastAPI()
 global USE_CACHE
-USE_CACHE = True
+USE_CACHE = False
 
 
 @app.post("/send_urls", status_code=204)
@@ -18,14 +18,17 @@ def send_urls(raw_urls: list[str]):
         try:
             with open("cache.json", "r") as f:
                 cache = json.load(f)
+                print(cache.keys())
         except Exception as e:
             print(f"Error loading cache: {e}")
             cache = {}
     else:
+        raise
         cache = {}
     for raw_url in raw_urls:
         video_id = video_id_from_url(raw_url)
-        if video_id not in cache:
+
+        if os.path.join("videos", video_id) not in cache.keys():
             uncached_urls.append(raw_url)
     paths = download_videos_batch(uncached_urls)
     summary_inputs = [(path, url) for path, url in zip(paths, uncached_urls)]
@@ -83,5 +86,5 @@ if __name__ == "__main__":
     parser.add_argument("--cache", action="store_true", help="Enable caching")
     args = parser.parse_args()
     
-    USE_CACHE = args.cache
+    USE_CACHE = True
     uvicorn.run(app, host="0.0.0.0", port=8080)
