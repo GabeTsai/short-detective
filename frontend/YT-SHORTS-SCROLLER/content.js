@@ -20,55 +20,20 @@
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   
     function dispatchKey(key) {
-      // Try multiple approaches for better compatibility
-      const keyCodeMap = {
-        "ArrowDown": 40,
-        "ArrowUp": 38
+      const keyCodeMap = { "ArrowDown": 40, "ArrowUp": 38 };
+      const opts = {
+        key, code: key,
+        keyCode: keyCodeMap[key], which: keyCodeMap[key],
+        bubbles: true, cancelable: true, view: window
       };
-      
-      const codeMap = {
-        "ArrowDown": "ArrowDown",
-        "ArrowUp": "ArrowUp"
-      };
-      
-      const keyCode = keyCodeMap[key];
-      const code = codeMap[key];
-      
-      // Create more complete keyboard events
-      const eventOptions = {
-        key: key,
-        code: code,
-        keyCode: keyCode,
-        which: keyCode,
-        bubbles: true,
-        cancelable: true,
-        view: window
-      };
-      
-      const down = new KeyboardEvent("keydown", eventOptions);
-      const up = new KeyboardEvent("keyup", eventOptions);
-      
-      // Try dispatching on multiple targets
-      const targets = [
-        document.activeElement,
-        document.querySelector('ytd-shorts video'),
-        document.querySelector('ytd-reel-video-renderer'),
-        document.querySelector('#player'),
-        document.body,
-        document,
-        window
-      ].filter(Boolean);
-      
-      console.log(`[YTSS] Dispatching ${key} to ${targets.length} targets`);
-      
-      for (const target of targets) {
-        try {
-          target.dispatchEvent(down);
-          target.dispatchEvent(up);
-          console.log(`[YTSS] Dispatched to:`, target.tagName || target.constructor?.name);
-        } catch (e) {
-          console.log(`[YTSS] Failed to dispatch to target:`, e);
-        }
+      const down = new KeyboardEvent("keydown", opts);
+      const up = new KeyboardEvent("keyup", opts);
+      // Dispatch to document + activeElement for broader compatibility
+      document.dispatchEvent(down);
+      document.dispatchEvent(up);
+      if (document.activeElement && document.activeElement !== document) {
+        document.activeElement.dispatchEvent(new KeyboardEvent("keydown", opts));
+        document.activeElement.dispatchEvent(new KeyboardEvent("keyup", opts));
       }
     }
   
@@ -859,309 +824,154 @@
     const allCollectedUrlsPersistent = []; // PERSISTENT - never cleared, all URLs ever collected
     const collectedUrlsInCycle = []; // Track URLs collected in THIS cycle in order
 
-    // Function to focus player so arrow keys work
-    async function focusPlayer() {
-      console.log("[YTSS] Attempting to focus player...");
-      
-      // Try multiple selectors
-      const selectors = [
-        'ytd-shorts video',
-        'ytd-reel-video-renderer',
-        '#player',
-        'video',
-        'ytd-shorts',
-        '[id*="player"]'
-      ];
-      
-      let focused = false;
-      for (const selector of selectors) {
-        const element = document.querySelector(selector);
-        if (element) {
-          try {
-            element.focus();
-            element.click();
-            // Also try focusing parent
-            if (element.parentElement) {
-              element.parentElement.focus();
-            }
-            console.log(`[YTSS] Focused: ${selector}`);
-            focused = true;
-          } catch (e) {
-            console.log(`[YTSS] Failed to focus ${selector}:`, e);
-          }
-        }
-      }
-      
-      if (!focused) {
-        // Last resort: click body
-        try {
-          document.body.focus();
-          document.body.click();
-          console.log("[YTSS] Clicked body as fallback");
-        } catch (e) {
-          console.log("[YTSS] Failed to click body:", e);
-        }
-      }
-      
-      await sleep(300); // Give more time for focus to take effect
+    // Focus player once so arrow keys work (no sleep, no click — instant)
+    function focusPlayer() {
+      const el = document.querySelector('ytd-shorts video')
+              || document.querySelector('video')
+              || document.body;
+      try { el.focus(); } catch {}
     }
 
-    // Function to scroll and collect URLs
+    // Collect the current URL if new
+    function collectCurrentUrl() {
+      const match = location.href.match(/\/shorts\/([^\/\?]+)/);
+      if (!match) return;
+      const videoId = match[1];
+      if (!isValidYouTubeVideoId(videoId)) return;
+
+      const canonicalUrl = `https://www.youtube.com/shorts/${videoId}`;
+      const originalCanonical = canonicalShortsUrl(originalVideoUrl);
+      if (canonicalUrl === originalCanonical || collectedUrls.has(canonicalUrl)) return;
+
+      collectedUrls.add(canonicalUrl);
+      collectedInThisCycle++;
+      collectedUrlsInCycle.push(canonicalUrl);
+
+      // Add to persistent log
+      if (!allCollectedUrlsPersistent.includes(canonicalUrl)) {
+        allCollectedUrlsPersistent.push(canonicalUrl);
+        if (els.log) { els.log.value = allCollectedUrlsPersistent.join("\n"); els.log.scrollTop = els.log.scrollHeight; }
+        if (els.count) { els.count.textContent = String(allCollectedUrlsPersistent.length); }
+      }
+
+      console.log(`[YTSS] ${collectedInThisCycle}/20: ${canonicalUrl}`);
+      chrome.runtime.sendMessage({ type: "FOUND_URL", url: canonicalUrl }, (res) => {
+        if (chrome.runtime.lastError) {
+          console.error("[YTSS] Error sending URL:", chrome.runtime.lastError);
+        } else if (res && res.ok) {
+          updateDebug(`Collected ${collectedInThisCycle}/20: ${canonicalUrl.substring(0, 50)}...`);
+        }
+      });
+    }
+
+    // Wait for URL to change, polling every 50ms, max 1s
+    async function waitForUrlChange(beforeUrl, maxMs = 1000) {
+      const polls = Math.ceil(maxMs / 50);
+      for (let i = 0; i < polls; i++) {
+        await sleep(50);
+        if (canonicalShortsUrl(location.href) !== beforeUrl) return true;
+      }
+      return false;
+    }
+
+    // Main scroll-and-collect loop (tight, focus once at the top)
     async function scrollAndCollect() {
-      if (!isCollecting || !collectionRunning) {
-        console.log("[YTSS] Collection stopped, aborting scrollAndCollect");
-        return;
-      }
-      
-      const currentUrl = location.href;
-      const match = currentUrl.match(/\/shorts\/([^\/\?]+)/);
-      
-      console.log(`[YTSS] scrollAndCollect: currentUrl=${currentUrl}, scrollCount=${scrollCount}, collectedInCycle=${collectedInThisCycle}`);
-      
-      if (match) {
-        const videoId = match[1];
-        if (isValidYouTubeVideoId(videoId)) {
-          const url = `https://www.youtube.com/shorts/${videoId}`;
-          const canonicalUrl = canonicalShortsUrl(url);
-          
-          // Only add if it's not the original video and we haven't collected it in this cycle
-          const originalCanonical = canonicalShortsUrl(originalVideoUrl);
-          if (canonicalUrl !== originalCanonical && !collectedUrls.has(canonicalUrl)) {
-            collectedUrls.add(canonicalUrl);
-            collectedInThisCycle++;
-            
-            // Track this URL in the cycle order
-            collectedUrlsInCycle.push(canonicalUrl);
-            console.log(`[YTSS] Cycle order: ${collectedUrlsInCycle.length}/20 - ${canonicalUrl}`);
-            
-            // Add to persistent log immediately (before sending to background)
-            if (!allCollectedUrlsPersistent.includes(canonicalUrl)) {
-              allCollectedUrlsPersistent.push(canonicalUrl);
-              console.log(`[YTSS] Added to persistent log immediately. Total: ${allCollectedUrlsPersistent.length}`);
-              
-              // Update UI immediately
-              if (els.log) {
-                els.log.value = allCollectedUrlsPersistent.join("\n");
-                els.log.scrollTop = els.log.scrollHeight;
-              }
-              if (els.count) {
-                els.count.textContent = String(allCollectedUrlsPersistent.length);
-              }
-            }
-            
-            console.log(`[YTSS] Collected new URL: ${canonicalUrl}`);
-            
-            // Save URL to background script - ensure it's saved
-            chrome.runtime.sendMessage({ type: "FOUND_URL", url: canonicalUrl }, (res) => {
-              if (chrome.runtime.lastError) {
-                console.error("[YTSS] Error sending URL:", chrome.runtime.lastError);
-                updateDebug(`Error saving URL: ${chrome.runtime.lastError.message}`);
-              } else if (res && res.ok) {
-                updateDebug(`Collected ${collectedInThisCycle}/20: ${canonicalUrl.substring(0, 50)}...`);
-              }
-            });
-          } else {
-            console.log(`[YTSS] URL already collected or is original: ${canonicalUrl}`);
-          }
+      if (!isCollecting || !collectionRunning) return;
+
+      // Focus once before the whole down-scroll phase
+      focusPlayer();
+
+      while (isCollecting && collectionRunning && collectedInThisCycle < 20) {
+        collectCurrentUrl();
+
+        // Handle preloading glitch at every 8th video
+        if (collectedInThisCycle > 0 && collectedInThisCycle % 8 === 0) {
+          console.log(`[YTSS] Preload bounce at ${collectedInThisCycle} videos`);
+          updateDebug(`Preload bounce at ${collectedInThisCycle} videos...`);
+          const beforeUp = canonicalShortsUrl(location.href);
+          dispatchKey("ArrowUp");
+          await waitForUrlChange(beforeUp, 1500);
+          const beforeDown = canonicalShortsUrl(location.href);
+          dispatchKey("ArrowDown");
+          await waitForUrlChange(beforeDown, 1500);
         }
-      }
-      
-      // Handle preloading glitch: when we reach 8th video, go back to 7th, then forward
-      if (collectedInThisCycle > 0 && collectedInThisCycle % 8 === 0) {
-        console.log(`[YTSS] Reached ${collectedInThisCycle} videos (8th in batch), handling preload...`);
-        updateDebug(`Reached ${collectedInThisCycle} videos, handling preload...`);
-        
-        // Scroll back to previous video (7th)
-        await focusPlayer();
-        dispatchKey("ArrowUp");
-        await sleep(500); // Wait for navigation
-        
-        // Then scroll forward again (back to 8th)
-        await focusPlayer();
+
+        // If we hit 20, break out to scroll back
+        if (collectedInThisCycle >= 20) break;
+
+        // Scroll down and wait for URL change (max 1s)
+        scrollCount++;
+        const before = canonicalShortsUrl(location.href);
         dispatchKey("ArrowDown");
-        await sleep(500); // Wait for navigation and preloading
-        
-        console.log(`[YTSS] Preload handled, continuing...`);
-      }
-      
-      // If we've collected 20, scroll back up
-      if (collectedInThisCycle >= 20) {
-        updateDebug(`Collected 20 URLs! Scrolling back to start of this batch...`);
-        collectionRunning = false;
-        
-        // Get the first URL we collected in this cycle (for verification)
-        const firstCollectedUrl = collectedUrlsInCycle.length > 0 ? collectedUrlsInCycle[0] : null;
-        console.log(`[YTSS] First URL collected in this cycle: ${firstCollectedUrl}`);
-        console.log(`[YTSS] All URLs in cycle order:`, collectedUrlsInCycle);
-        
-        // Store the first video of the NEXT batch (current position after collecting 20)
-        const nextBatchStartUrl = canonicalShortsUrl(location.href);
-        console.log(`[YTSS] Next batch will start from: ${nextBatchStartUrl}`);
-        
-        // Scroll back to the start of THIS batch (exactly 20 scrolls)
-        await scrollBackToStart(firstCollectedUrl);
-        
-        // Update originalVideoUrl to be the first video of the NEXT batch
-        // This way, when we start the next cycle, we'll scroll forward to it first
-        originalVideoUrl = nextBatchStartUrl;
-        console.log(`[YTSS] Updated originalVideoUrl for next cycle: ${originalVideoUrl}`);
-        
-        // Reset and repeat (but keep allCollectedUrlsPersistent persistent)
-        collectedInThisCycle = 0;
-        collectedUrls.clear(); // Clear only the cycle tracking Set
-        collectedUrlsInCycle.length = 0; // Clear the cycle order array
-        // allCollectedUrlsPersistent is NOT cleared - it persists across cycles
-        setTimeout(() => {
-          startCollectionCycle();
-        }, 2000); // Wait 2 seconds before next cycle
-        return;
-      }
-      
-      // Otherwise, scroll down to next video
-      scrollCount++;
-      console.log(`[YTSS] Scrolling down (attempt ${scrollCount})...`);
-      
-      // Re-focus before each scroll
-      await focusPlayer();
-      
-      const scrollDelay = Number(els.scrollDelay?.value) || CONFIG.scrollDelayMs;
-      const currentUrlBeforeScroll = canonicalShortsUrl(location.href);
-      
-      dispatchKey("ArrowDown");
-      
-      // Wait and check multiple times - YouTube might need time to navigate
-      let urlChanged = false;
-      let attempts = 0;
-      const maxCheckAttempts = 5;
-      
-      while (!urlChanged && attempts < maxCheckAttempts) {
-        await sleep(scrollDelay + (attempts * 100)); // Increasing delay each check
-        const newUrl = canonicalShortsUrl(location.href);
-        
-        if (newUrl !== currentUrlBeforeScroll) {
-          urlChanged = true;
-          console.log(`[YTSS] URL changed! ${currentUrlBeforeScroll} -> ${newUrl}`);
-          break;
-        }
-        attempts++;
-      }
-      
-      if (!urlChanged) {
-        // Final check with longer delay
-        await sleep(scrollDelay * 2);
-        const finalUrl = canonicalShortsUrl(location.href);
-        if (finalUrl !== currentUrlBeforeScroll) {
-          urlChanged = true;
-          console.log(`[YTSS] URL changed on final check: ${finalUrl}`);
+        const changed = await waitForUrlChange(before);
+        if (changed) {
+          console.log(`[YTSS] ↓ ${scrollCount}: URL changed`);
         } else {
-          // Only log warning, don't show in UI unless it's a real problem
-          console.log(`[YTSS] URL did not change after scroll attempt ${scrollCount} (checked ${maxCheckAttempts + 1} times)`);
-          // Don't show warning in UI - might just be slow
+          console.log(`[YTSS] ↓ ${scrollCount}: URL didn't change after 1s`);
         }
       }
-      
-      // Continue collecting regardless
-      setTimeout(() => scrollAndCollect(), scrollDelay);
+
+      // Collect the last URL after the loop ends
+      collectCurrentUrl();
+
+      if (collectedInThisCycle >= 20) {
+        updateDebug(`Collected 20 URLs! Scrolling back...`);
+        collectionRunning = false;
+
+        const firstCollectedUrl = collectedUrlsInCycle.length > 0 ? collectedUrlsInCycle[0] : null;
+        const nextBatchStartUrl = canonicalShortsUrl(location.href);
+        console.log(`[YTSS] Next batch starts from: ${nextBatchStartUrl}`);
+
+        await scrollBackToStart(firstCollectedUrl);
+
+        originalVideoUrl = nextBatchStartUrl;
+        collectedInThisCycle = 0;
+        collectedUrls.clear();
+        collectedUrlsInCycle.length = 0;
+
+        setTimeout(() => startCollectionCycle(), 2000);
+      }
     }
 
-    // Function to scroll back to the original video
+    // Scroll back up exactly 20 videos (focus once, 50ms polling)
     async function scrollBackToStart(firstCollectedUrl = null) {
-      updateDebug("Scrolling back to original video...");
-      
-      // Use first collected URL if provided, otherwise use originalVideoUrl
-      const targetUrl = firstCollectedUrl 
-        ? canonicalShortsUrl(firstCollectedUrl) 
+      const targetUrl = firstCollectedUrl
+        ? canonicalShortsUrl(firstCollectedUrl)
         : canonicalShortsUrl(originalVideoUrl);
-      
+
       console.log(`[YTSS] Scrolling back to: ${targetUrl}`);
-      console.log(`[YTSS] First collected URL in cycle: ${firstCollectedUrl || 'not provided'}`);
-      
-      // Focus player first
-      await focusPlayer();
-      
-      console.log(`[YTSS] Starting position: ${canonicalShortsUrl(location.href)}`);
-      console.log(`[YTSS] Will scroll up exactly 20 times`);
-      
-      // Scroll up exactly 20 times (one for each video we collected)
+      updateDebug("Scrolling back...");
+
+      // No focus/delay — start scrolling up immediately
       for (let i = 0; i < 20; i++) {
-        const urlBeforeScroll = canonicalShortsUrl(location.href);
-        
+        const before = canonicalShortsUrl(location.href);
         dispatchKey("ArrowUp");
-        
-        // Wait for URL to actually change (no fixed timer)
-        let urlChanged = false;
-        let waitAttempts = 0;
-        const maxWaitAttempts = 50; // Max 5 seconds (50 * 100ms)
-        
-        while (!urlChanged && waitAttempts < maxWaitAttempts) {
-          await sleep(100); // Small check interval
-          const currentCanonical = canonicalShortsUrl(location.href);
-          
-          if (currentCanonical !== urlBeforeScroll) {
-            urlChanged = true;
-            console.log(`[YTSS] Scroll up ${i + 1}/20: ${currentCanonical} (URL changed)`);
-            break;
-          }
-          
-          waitAttempts++;
-        }
-        
-        if (!urlChanged) {
-          console.log(`[YTSS] Scroll up ${i + 1}/20: URL did not change after ${maxWaitAttempts * 100}ms, continuing anyway`);
-        }
-        
-        // Small check to see if we're making progress
-        if (i > 0 && i % 5 === 0) {
-          updateDebug(`Scrolling back... ${i + 1}/20`);
+        const changed = await waitForUrlChange(before, 1500);
+        console.log(`[YTSS] ↑ ${i + 1}/20: ${changed ? canonicalShortsUrl(location.href) : 'no change'}`);
+        if (i > 0 && i % 5 === 0) updateDebug(`Scrolling back... ${i + 1}/20`);
+      }
+
+      const finalUrl = canonicalShortsUrl(location.href);
+      if (finalUrl === targetUrl) {
+        updateDebug("Returned to start ✓");
+        console.log(`[YTSS] Perfect match after 20 scrolls!`);
+        return true;
+      }
+
+      // Try up to 5 more scrolls if mismatch
+      console.log(`[YTSS] Mismatch: expected ${targetUrl}, got ${finalUrl}`);
+      for (let i = 0; i < 5; i++) {
+        const before = canonicalShortsUrl(location.href);
+        dispatchKey("ArrowUp");
+        await waitForUrlChange(before, 1500);
+        if (canonicalShortsUrl(location.href) === targetUrl) {
+          updateDebug(`Found target after ${i + 1} extra scrolls!`);
+          return true;
         }
       }
-      
-      // After exactly 20 scrolls, check if we're at the target
-      const finalCanonical = canonicalShortsUrl(location.href);
-      console.log(`[YTSS] After 20 scrolls, final URL: ${finalCanonical}`);
-      console.log(`[YTSS] Target URL (first collected): ${targetUrl}`);
-      
-      if (finalCanonical === targetUrl) {
-        updateDebug("Successfully returned to first collected URL! ✓");
-        console.log(`[YTSS] Perfect match after exactly 20 scrolls!`);
-        return true; // Success
-      } else {
-        updateDebug(`Warning: After 20 scrolls, URL mismatch. Expected: ${targetUrl.substring(0, 50)}..., Got: ${finalCanonical.substring(0, 50)}...`);
-        console.log(`[YTSS] URL mismatch! Expected: ${targetUrl}, Got: ${finalCanonical}`);
-        
-        // Try a few more scrolls if we're close but not exact
-        let attempts = 0;
-        const maxAdditionalAttempts = 5;
-        while (finalCanonical !== targetUrl && attempts < maxAdditionalAttempts) {
-          const urlBefore = canonicalShortsUrl(location.href);
-          dispatchKey("ArrowUp");
-          
-          // Wait for URL to change
-          let urlChanged = false;
-          let waitAttempts = 0;
-          while (!urlChanged && waitAttempts < 20) {
-            await sleep(100);
-            const newCanonical = canonicalShortsUrl(location.href);
-            if (newCanonical !== urlBefore) {
-              urlChanged = true;
-              console.log(`[YTSS] Additional scroll ${attempts + 1}: ${newCanonical}`);
-              if (newCanonical === targetUrl) {
-                updateDebug(`Found target after ${attempts + 1} additional scrolls!`);
-                console.log(`[YTSS] Found target after ${attempts + 1} additional scrolls`);
-                return true; // Success
-              }
-            }
-            waitAttempts++;
-          }
-          attempts++;
-        }
-        
-        if (attempts >= maxAdditionalAttempts) {
-          console.log(`[YTSS] Could not find exact match after 20 + ${maxAdditionalAttempts} scrolls`);
-          updateDebug(`Failed to match first collected URL after 20 scrolls`);
-          return false; // Failed
-        }
-      }
+
+      updateDebug(`Warning: could not match start URL after 25 scrolls`);
+      return false;
     }
 
     // Main collection cycle
@@ -1177,14 +987,15 @@
         console.log(`[YTSS] Not at batch start. Current: ${currentCanonical}, Target: ${targetCanonical}`);
         updateDebug(`Scrolling forward to start of next batch...`);
         
-        await focusPlayer();
+        focusPlayer();
         
         // Scroll forward until we reach the target
         let attempts = 0;
         const maxAttempts = 30;
         while (canonicalShortsUrl(location.href) !== targetCanonical && attempts < maxAttempts) {
+          const before = canonicalShortsUrl(location.href);
           dispatchKey("ArrowDown");
-          await sleep(300);
+          await waitForUrlChange(before, 1000);
           attempts++;
           
           if (canonicalShortsUrl(location.href) === targetCanonical) {
@@ -1195,7 +1006,6 @@
         
         if (attempts >= maxAttempts) {
           console.log(`[YTSS] Could not reach batch start, using current position`);
-          // Use current position as the new batch start
           originalVideoUrl = currentCanonical;
         } else {
           originalVideoUrl = targetCanonical;
@@ -1227,7 +1037,7 @@
       updateDebug("Starting automatic scroll collection...");
       
       // Focus player so arrow keys work
-      await focusPlayer();
+      focusPlayer();
       
       // Start scrolling and collecting
       await scrollAndCollect();
