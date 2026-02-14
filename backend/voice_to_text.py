@@ -19,8 +19,7 @@ we use the openai library as a plain HTTP client pointed at your own server URL.
      # optional: --language es  --url https://...  (--url overrides .env)
 
   3) From your backend code:
-     from backend import config
-     from backend.voice_to_text import voice_to_text
+     from backend import config, voice_to_text
 
      url = config.get_transcription_url()  # from TRANSCRIPTION_URL
      text = voice_to_text("/path/to/audio.mp3", url, language="en")
@@ -37,15 +36,14 @@ from typing import Optional
 
 import modal
 
-try:
-    from backend import config
-except ImportError:
-    import config  # when run as script from backend/ (e.g. modal run voice_to_text.py)
-
 # Re-export for callers that import from this module
 __all__ = ["app", "voice_to_text", "serve"]
 
+# Import config - will work locally and in Modal after we add it to the image
+from backend import config
+
 # Container: vLLM with audio support for Voxtral (installs mistral_common automatically)
+# IMPORTANT: .add_local_python_source() must come LAST to avoid rebuilds on every code change
 vllm_image = (
     modal.Image.from_registry(
         config.VOXTRAL_IMAGE_CUDA,
@@ -55,9 +53,12 @@ vllm_image = (
     .uv_pip_install(
         config.VOXTRAL_VLLM_INSTALL,
         config.VOXTRAL_HUB_INSTALL,
+        "python-dotenv",  # For config.py to load .env
     )
+    .add_local_python_source("backend")  # Include the backend package (must be LAST!)
 )
 
+# create volumes to cache model weights
 hf_cache_vol = modal.Volume.from_name(
     config.HF_CACHE_VOLUME_NAME, create_if_missing=True
 )
@@ -105,33 +106,69 @@ def voice_to_text(
     audio_path: str,
     self_hosted_vllm_url: str,
     language: Optional[str] = None,
+    timeout: int = 300,
 ) -> str:
-    """Call our self-hosted vLLM server (Voxtral on H100). Uses openai lib only as HTTP client."""
+    """Call our self-hosted vLLM server (Voxtral on H100). Uses openai lib only as HTTP client.
+    
+    Args:
+        audio_path: Path to the audio file to transcribe.
+        self_hosted_vllm_url: URL of the self-hosted vLLM server.
+        language: ISO language code for transcription (e.g. en, es, fr). Default from config.
+        timeout: Timeout in seconds for API calls (default 300s = 5 minutes).
+    
+    Returns:
+        The transcription text.
+    """
     from openai import OpenAI
     from mistral_common.audio import Audio
     from mistral_common.protocol.instruct.messages import RawAudio
     from mistral_common.protocol.transcription.request import TranscriptionRequest
+    import httpx
 
     lang = language if language is not None else config.DEFAULT_TRANSCRIPTION_LANGUAGE
     # OpenAI lib is just an HTTP client here; no OpenAI API key needed for self-hosted vLLM
     client = OpenAI(
         api_key="EMPTY",
         base_url=self_hosted_vllm_url.rstrip("/") + "/v1",
+        timeout=httpx.Timeout(timeout, read=timeout, write=timeout, connect=10.0),
+        max_retries=0,
     )
-    models = client.models.list()
-    model_id = models.data[0].id
+    
+    # Get model ID (with timeout protection)
+    print("Fetching model list from server...")
+    try:
+        models = client.models.list()
+        model_id = models.data[0].id
+        print(f"Using model: {model_id}")
+    except Exception as e:
+        print(f"Error listing models: {e}")
+        print("Attempting to use default model ID...")
+        model_id = config.VOXTRAL_MODEL_ID
 
+    print(f"Transcribing audio file: {audio_path}")
     audio = Audio.from_file(audio_path, strict=False)
     raw = RawAudio.from_audio(audio)
+    
+    # Convert to OpenAI format, excluding Mistral-specific parameters
     req = TranscriptionRequest(
         model=model_id,
         audio=raw,
         language=lang,
         temperature=0.0,
-    ).to_openai(exclude=("top_p", "seed"))
+    ).to_openai(exclude=("top_p", "seed", "target_streaming_delay_ms"))
+    
+    # Debug: print the request parameters (excluding large audio data)
+    debug_req = {k: v for k, v in req.items() if k != "file"}
+    print(f"Request parameters: {debug_req}")
 
-    response = client.audio.transcriptions.create(**req)
-    return response.text if hasattr(response, "text") else str(response)
+    try:
+        response = client.audio.transcriptions.create(**req)
+        return response.text if hasattr(response, "text") else str(response)
+    except TypeError as e:
+        # If we get parameter errors, try to identify which parameter is the problem
+        print(f"Error: {e}")
+        print(f"Full request keys: {list(req.keys())}")
+        raise
 
 
 @app.local_entrypoint()
@@ -156,20 +193,51 @@ def main(
         self_hosted_url = serve.get_web_url()
         # Wait for vLLM to be ready (model load can take 2–5+ min)
         import urllib.request
+        import json
+        
+        print("Waiting for server to be ready...")
+        health_ready = False
+        models_ready = False
+        
         for i in range(config.VOXTRAL_HEALTH_CHECK_RETRIES):
-            try:
-                urllib.request.urlopen(
-                    f"{self_hosted_url}/health",
-                    timeout=config.VOXTRAL_HEALTH_CHECK_TIMEOUT_SECONDS,
-                )
-                print("Server ready at", self_hosted_url)
-                break
-            except Exception:
-                if i == 0:
-                    print("Waiting for server to be ready...")
+            # Check health endpoint
+            if not health_ready:
+                try:
+                    urllib.request.urlopen(
+                        f"{self_hosted_url}/health",
+                        timeout=config.VOXTRAL_HEALTH_CHECK_TIMEOUT_SECONDS,
+                    )
+                    health_ready = True
+                    print("✓ Health endpoint responding")
+                except Exception:
+                    if i == 0:
+                        print("  Waiting for health endpoint...")
+                    time.sleep(config.VOXTRAL_HEALTH_CHECK_INTERVAL_SECONDS)
+                    continue
+            
+            # Check if models are loaded
+            if health_ready and not models_ready:
+                try:
+                    response = urllib.request.urlopen(
+                        f"{self_hosted_url}/v1/models",
+                        timeout=config.VOXTRAL_HEALTH_CHECK_TIMEOUT_SECONDS,
+                    )
+                    data = json.loads(response.read())
+                    if data.get("data") and len(data["data"]) > 0:
+                        models_ready = True
+                        print(f"✓ Model loaded: {data['data'][0]['id']}")
+                        print(f"Server ready at {self_hosted_url}")
+                        break
+                    else:
+                        print("  Model still loading...")
+                except Exception as e:
+                    print(f"  Model not ready yet... ({e})")
+                
                 time.sleep(config.VOXTRAL_HEALTH_CHECK_INTERVAL_SECONDS)
-        else:
-            print("Server did not become ready in time; you may still try --audio-path.")
+        
+        if not models_ready:
+            print("⚠ Server did not fully load model in time.")
+            print("You can still try transcription, but it may take longer or timeout.")
 
     if not audio_path:
         print("Usage: modal run voice_to_text.py --audio-path /path/to/audio.mp3")
