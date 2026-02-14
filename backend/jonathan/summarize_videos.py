@@ -20,8 +20,22 @@ def summarize_videos(paths: list[str]) -> str:
         Channel page info: {channel_page_info}
         Semantic analysis: {semantic_analysis_info}
         """
-        return_dict[path] = message + f"This video was fake, url is {path}"
         
+        
+        client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+        system_prompt = """
+        You are a helpful assistant that analyzes YouTube channel information for signs of 
+        misinformation, scams, or suspicious activity. Be BRIEF and CONCISE. User input may be truncated. 
+        Try to be barebones and only give the most important information. 
+        """
+        response = client.chat.completions.create(
+            model="gpt-5-mini-2025-08-07",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"Analyze this YouTube channel and give a short summary of its trustworthiness:\n\n{json.dumps(channel_info, indent=2)[:5000]}"}
+            ]
+        )
+        return_dict[path] = response.choices[0].message.content
     return return_dict
 
 if __name__ == "__main__":

@@ -148,7 +148,8 @@ def check_channel_page(short_url: str) -> str:
     client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
     system_prompt = """
     You are a helpful assistant that analyzes YouTube channel information for signs of 
-    misinformation, scams, or suspicious activity. Be brief and concise. User input may be truncated. 
+    misinformation, scams, or suspicious activity. Be BRIEF and CONCISE. User input may be truncated. 
+    Try to be barebones and only give the most important information. 
     """
     response = client.chat.completions.create(
         model="gpt-5-mini-2025-08-07",
@@ -164,6 +165,8 @@ def check_channel_page(short_url: str) -> str:
 if __name__ == "__main__":
     import time
     start_time = time.perf_counter()
-    print(check_channel_page("https://www.youtube.com/shorts/EaDxKdpvMhc"))
+    x = check_channel_page("https://www.youtube.com/shorts/EaDxKdpvMhc")
+    print(x)
+    print(len(x))
     end_time = time.perf_counter()
     print(f"Time taken: {end_time - start_time} seconds")

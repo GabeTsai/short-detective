@@ -64,10 +64,8 @@ def download_video_max_720p(url, download_path="videos", duration=30):
 
         # Use temp directory for intermediate files
         os.makedirs(TEMP_DIR, exist_ok=True)
-        video_tmp = os.path.join(TEMP_DIR, f"{video_id}_video")
-        audio_tmp = os.path.join(TEMP_DIR, f"{video_id}_audio")
-        video_file = video_stream.download(filename=video_tmp)
-        audio_file = audio_stream.download(filename=audio_tmp)
+        video_file = video_stream.download(output_path=TEMP_DIR, filename=f"{video_id}_video")
+        audio_file = audio_stream.download(output_path=TEMP_DIR, filename=f"{video_id}_audio")
 
         try:
             result = subprocess.run(
