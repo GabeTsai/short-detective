@@ -205,8 +205,8 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
-backend/jonathan/videos/
-backend/jonathan/audio
+backend/server/videos/
+backend/server/audio
 temp/
 
 # any test data
