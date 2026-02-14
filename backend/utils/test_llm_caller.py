@@ -32,7 +32,7 @@ def test_openai():
 def test_google():
     request = LlmRequest(
         organization="google",
-        model="gemini-1.5-flash",
+        model="gemini-2.0-flash",
         system_prompt="You are a helpful assistant.",
         instructions="Say hello in exactly 3 words.",
         images=[]
@@ -58,14 +58,14 @@ def test_anthropic():
 
 
 if __name__ == "__main__":
-    print("Testing OpenAI...")
-    test_openai()
-    print("OpenAI passed!\n")
-    '''
+    #print("Testing OpenAI...")
+   # test_openai()
+   # print("OpenAI passed!\n")
+
     print("Testing Google...")
     test_google()
     print("Google passed!\n")
-
+    '''
     print("Testing Anthropic...")
     test_anthropic()
     print("Anthropic passed!\n")

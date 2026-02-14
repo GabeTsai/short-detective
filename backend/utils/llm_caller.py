@@ -40,20 +40,23 @@ def _call_openai(info: LlmRequest) -> str:
 
 
 def _call_google(info: LlmRequest) -> str:
-    import google.generativeai as genai
-    from PIL import Image
-    genai.configure(api_key=os.environ["GOOGLE_API_KEY"])
+    from google import genai
 
-    model = genai.GenerativeModel(
-        model_name=info.model,
-        system_instruction=info.system_prompt
-    )
+    client = genai.Client(api_key=os.environ["GOOGLE_API_KEY"])
 
-    content = [info.instructions]
+    contents = [info.instructions]
     for image_path in info.images:
-        content.append(Image.open(image_path))
+        base64_image = _encode_image(image_path)
+        contents.append({
+            "mime_type": "image/jpeg",
+            "data": base64_image
+        })
 
-    response = model.generate_content(content)
+    response = client.models.generate_content(
+        model=info.model,
+        contents=contents,
+        config={"system_instruction": info.system_prompt}
+    )
     return response.text
 
 
