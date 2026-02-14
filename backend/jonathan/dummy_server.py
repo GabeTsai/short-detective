@@ -18,8 +18,16 @@ def root():
 @app.get("/get-info")
 def get_info(url: str):
     """Test endpoint. Accepts a string as input."""
-    return {"message": f"This video was fake, url is {url}"}
+    return {"message": f"This video was fake, url is {url}", "is_streaming": True}
 
+def hi_stream():
+    for i in range(10):
+        yield "hi{i}\n"
+        time.sleep(0.5)  # optional delay to show streaming
+
+@app.get("/stream")
+def stream(url: str):
+    return StreamingResponse(hi_stream(), media_type="text/plain")
 
 if __name__ == "__main__":
     import uvicorn

@@ -162,4 +162,8 @@ def check_channel_page(short_url: str) -> str:
 
 
 if __name__ == "__main__":
+    import time
+    start_time = time.perf_counter()
     print(check_channel_page("https://www.youtube.com/shorts/EaDxKdpvMhc"))
+    end_time = time.perf_counter()
+    print(f"Time taken: {end_time - start_time} seconds")

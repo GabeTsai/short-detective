@@ -49,6 +49,7 @@ def root():
 def get_info(url: str):
     """Get cached info for a video URL."""
     video_id = video_id_from_url(url)
+
     try:
         with open("cache.json", "r") as f:
             cache = json.load(f)
@@ -60,6 +61,24 @@ def get_info(url: str):
     else:
         return {"message": f"Video {video_id} not in cache"}
 
+    return {"message": "Video not in cache", "is_streaming": True}
+
+from fastapi import FastAPI
+from fastapi.responses import StreamingResponse
+import time
+
+app = FastAPI()
+
+
+def hi_stream():
+    for i in range(10):
+        yield "hi{i}\n"
+        time.sleep(0.5)  # optional delay to show streaming
+
+
+@app.get("/stream")
+def stream(url: str):
+    return StreamingResponse(hi_stream(), media_type="text/plain")
 
 if __name__ == "__main__":
     import uvicorn
