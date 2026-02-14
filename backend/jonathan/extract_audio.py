@@ -2,6 +2,11 @@ import sys
 import subprocess
 import os
 
+import sys
+import subprocess
+import os
+
+
 def extract_audio(video_path, output_path=None):
     """Extract audio from a video file and save as mp3."""
     if not os.path.exists(video_path):
@@ -16,13 +21,20 @@ def extract_audio(video_path, output_path=None):
         base = os.path.splitext(os.path.basename(video_path))[0]
         output_path = os.path.join(audio_dir, base + ".mp3")
 
-    subprocess.run(
+    if os.path.exists(output_path):
+        print(f"Already exists: {output_path}")
+        return output_path
+
+    result = subprocess.run(
         ["ffmpeg", "-i", video_path, "-vn", "-acodec", "libmp3lame", "-q:a", "2", output_path],
-        check=True,
+        capture_output=True,
+        text=True,
     )
+    if result.returncode != 0:
+        print(result.stderr)
+        sys.exit(1)
     print(f"Saved to {output_path}")
     return output_path
-
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:

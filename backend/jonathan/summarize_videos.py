@@ -9,20 +9,21 @@ from extract_audio import extract_audio
 def summarize_videos(paths: list[str]) -> str:
     return_dict = {}
     for path in paths:
-        transcription = voice_to_text(path)
+        audio_path = extract_audio(path)
+        transcription = voice_to_text(audio_path)
         channel_page_info = check_channel_page(path)
         semantic_analysis_info = semantic_analysis(path)
-        audio_path = extract_audio(path)
+        
         message = f"""
         Given this information, tell users if there is anything problematic about the video.
         Transcription: {transcription}
         Channel page info: {channel_page_info}
         Semantic analysis: {semantic_analysis_info}
         """
-        return_dict[path] = message
-        return_dict[path] = f"This video was fake, url is {path}"
+        return_dict[path] = message + f"This video was fake, url is {path}"
         
     return return_dict
 
 if __name__ == "__main__":
-    summarize_videos(["videos/AVeuGFSSAxQ.mp4"])
+    x = summarize_videos(["videos/AVeuGFSSAxQ.mp4"])
+    print(x)

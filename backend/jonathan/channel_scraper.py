@@ -1,8 +1,16 @@
 import sys
+import os
 import json
 import re
 import subprocess
 import urllib.request
+from pathlib import Path
+from dotenv import load_dotenv
+from openai import OpenAI
+
+# Load .env from root folder
+root_dir = Path(__file__).resolve().parent.parent.parent
+load_dotenv(root_dir / ".env")
 
 
 def get_channel_from_short(short_url):
@@ -133,5 +141,25 @@ def scrape_channel(short_url, video_limit=10):
     return {**about, "videos": videos}
 
 
+### Takes around 20s ish for 3k character dictionary
+def check_channel_page(short_url: str) -> str:
+    channel_info = scrape_channel(short_url)
+
+    client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+    system_prompt = """
+    You are a helpful assistant that analyzes YouTube channel information for signs of 
+    misinformation, scams, or suspicious activity. Be brief and concise. User input may be truncated. 
+    """
+    response = client.chat.completions.create(
+        model="gpt-5-mini-2025-08-07",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": f"Analyze this YouTube channel and give a short summary of its trustworthiness:\n\n{json.dumps(channel_info, indent=2)[:5000]}"}
+        ]
+    )
+    
+    return response.choices[0].message.content
+
+
 if __name__ == "__main__":
-    print(scrape_channel("https://www.youtube.com/shorts/E1h3KuDYAic"))
+    print(check_channel_page("https://www.youtube.com/shorts/EaDxKdpvMhc"))
