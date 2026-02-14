@@ -1,5 +1,14 @@
 from fastapi import FastAPI, Body
 from fastapi.middleware.cors import CORSMiddleware
+from download_video import download_videos_batch, video_id_from_url
+from summarize_videos import summarize_videos
+import argparse
+import json
+import os
+from fastapi.responses import StreamingResponse
+import time
+from fastapi import FastAPI, Body
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 import time
@@ -41,8 +50,20 @@ def root():
 
 @app.get("/get-info")
 def get_info(url: str):
-    """Test endpoint. Accepts a string as input."""
-    return {"message": f"This video was fake, url is {url}", "is_streaming": True}
+    """Get cached info for a video URL."""
+    video_id = video_id_from_url(url)
+    video_id = os.path.join("videos", video_id)
+    try:
+        with open("cache.json", "r") as f:
+            cache = json.load(f)
+    except FileNotFoundError:
+        return {"message": "Cache not found"}
+    print(video_id)
+    print(cache.keys())
+    if video_id in cache:
+        return {"message": cache[video_id]}
+    else:
+        return {"message": f"Video {video_id} not in cache"}
 
 def hi_stream():
     for i in range(10):

@@ -97,6 +97,73 @@
   function hidePopup() {
     popupOverlay.classList.remove("ytss-popup-visible");
     }
+
+  // ---------- Analysis Panel ----------
+  function createAnalysisPanel() {
+    const root = document.createElement("div");
+    root.id = "ytss-analysis-root";
+    root.innerHTML = `
+      <div id="ytss-analysis-panel">
+        <div id="ytss-analysis-header">Analysis Results</div>
+        <div id="ytss-analysis-body">
+          <div class="ytss-analysis-empty">Analysis results will appear here after URLs are collected...</div>
+        </div>
+      </div>
+    `;
+    document.documentElement.appendChild(root);
+    return root;
+  }
+
+  const analysisPanel = createAnalysisPanel();
+
+  function renderAnalysisResults(results) {
+    const body = analysisPanel.querySelector("#ytss-analysis-body");
+    if (!body) return;
+
+    // results is an object: { url: analysisText, ... }
+    const entries = Object.entries(results);
+    if (entries.length === 0) {
+      body.innerHTML = `<div class="ytss-analysis-empty">No analysis available yet.</div>`;
+      return;
+    }
+
+    let html = "";
+    for (const [url, analysis] of entries) {
+      // Extract video ID for display
+      const videoId = url.split("/shorts/").pop()?.split("?")[0] || url;
+      const escapedAnalysis = analysis
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+      html += `
+        <div class="ytss-analysis-card">
+          <div class="ytss-analysis-url">${videoId}</div>
+          <div class="ytss-analysis-text">${escapedAnalysis}</div>
+        </div>
+      `;
+    }
+    body.innerHTML = html;
+  }
+
+  function showAnalysisLoading() {
+    const body = analysisPanel.querySelector("#ytss-analysis-body");
+    if (!body) return;
+    // Add a loading indicator at the top
+    const existing = body.querySelector(".ytss-analysis-loading");
+    if (!existing) {
+      const loader = document.createElement("div");
+      loader.className = "ytss-analysis-loading";
+      loader.innerHTML = `<div class="ytss-spinner"></div><span>Analyzing videos...</span>`;
+      body.prepend(loader);
+    }
+  }
+
+  function hideAnalysisLoading() {
+    const body = analysisPanel.querySelector("#ytss-analysis-body");
+    if (!body) return;
+    const loader = body.querySelector(".ytss-analysis-loading");
+    if (loader) loader.remove();
+    }
   
     // ---------- UI Injection ----------
     function injectUI() {
@@ -300,16 +367,21 @@
       await scrollBackToStart();
       collectionRunning = false;
 
-      // Send latest batch to backend
+      // Send latest batch to backend and get analysis
       const latestBatch = allCollectedUrlsPersistent.slice(-8);
       updatePopupProgress("Sending to backend...");
+      showAnalysisLoading();
       chrome.runtime.sendMessage(
         { type: "SEND_TO_BACKEND", urls: latestBatch },
         (res) => {
+          hideAnalysisLoading();
           if (chrome.runtime.lastError) {
             console.error("[YTSS] Backend send error:", chrome.runtime.lastError);
+          } else if (res?.ok && res.analysis) {
+            console.log("[YTSS] ✓ Batch sent + analysis received");
+            renderAnalysisResults(res.analysis);
           } else if (res?.ok) {
-            console.log("[YTSS] ✓ Batch sent to backend");
+            console.log("[YTSS] ✓ Batch sent (no analysis returned)");
         } else {
             console.log("[YTSS] Backend unavailable:", res?.error || "unknown");
           }
@@ -504,6 +576,7 @@
       els.stop.disabled = false;
       setStatus("collecting...");
       bootstrap();
+      startAnalysisPolling();
       startUrlCollection();
     });
   
@@ -530,6 +603,35 @@
       setStatus("idle");
     });
   
+  // ---------- Analysis Polling (every 3s) ----------
+  let lastAnalysisUrl = null;
+  let analysisPollingActive = false;
+
+  function startAnalysisPolling() {
+    if (analysisPollingActive) return;
+    analysisPollingActive = true;
+
+    setInterval(() => {
+      if (!isCollecting) return;       // only poll when active
+      if (collectionRunning) return;   // skip during auto-scroll
+
+      const currentUrl = canonicalShortsUrl(location.href);
+      // Skip if same URL as last poll
+      if (currentUrl === lastAnalysisUrl) return;
+
+      chrome.runtime.sendMessage(
+        { type: "GET_INFO", url: currentUrl },
+        (res) => {
+          if (chrome.runtime.lastError) return;
+          if (res?.ok && res.message) {
+            lastAnalysisUrl = currentUrl;
+            renderAnalysisResults({ [currentUrl]: res.message });
+          }
+        }
+      );
+    }, 3000);
+  }
+
   // Auto-bootstrap on load
     bootstrap();
   })();

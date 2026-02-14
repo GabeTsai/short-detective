@@ -68,14 +68,41 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           body: JSON.stringify(urls)
         });
         if (res.ok) {
-          console.log("[YTSS BG] ✓ URLs sent to backend");
-          sendResponse({ ok: true });
+          // Try to parse analysis results from response
+          let analysis = null;
+          try {
+            const text = await res.text();
+            if (text && text.trim()) {
+              analysis = JSON.parse(text);
+            }
+          } catch (parseErr) {
+            console.log("[YTSS BG] No analysis in response (expected for 204)");
+          }
+          console.log("[YTSS BG] ✓ URLs sent to backend" + (analysis ? " + analysis received" : ""));
+          sendResponse({ ok: true, analysis });
         } else {
           console.error(`[YTSS BG] ✗ Backend responded ${res.status}`);
           sendResponse({ ok: false, error: `Backend status ${res.status}` });
         }
       } catch (err) {
         console.error("[YTSS BG] ✗ Backend unreachable:", err.message);
+        sendResponse({ ok: false, error: err.message });
+      }
+      return;
+    }
+
+    if (msg.type === "GET_INFO") {
+      const url = msg.url;
+      console.log(`[YTSS BG] Fetching analysis for: ${url}`);
+      try {
+        const res = await fetch(`${BACKEND_URL}/get-info?url=${encodeURIComponent(url)}`);
+        if (res.ok) {
+          const data = await res.json();
+          sendResponse({ ok: true, message: data.message });
+        } else {
+          sendResponse({ ok: false, error: `Backend status ${res.status}` });
+        }
+      } catch (err) {
         sendResponse({ ok: false, error: err.message });
       }
       return;
