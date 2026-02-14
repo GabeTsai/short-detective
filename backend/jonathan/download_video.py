@@ -83,3 +83,7 @@ def download_videos_batch(urls, download_path="videos", n=10):
             except Exception as e:
                 print(f"Failed for {url}: {e}")
     return filenames
+    
+if __name__ == "__main__":
+    # RFK fat gay kids
+    download_videos_batch(["https://www.youtube.com/shorts/EaDxKdpvMhc"])

@@ -47,8 +47,18 @@ def root():
 
 @app.get("/get-info")
 def get_info(url: str):
-    """Test endpoint. Accepts a string as input."""
-    return {"message": f"This video was fake, url is {url}"}
+    """Get cached info for a video URL."""
+    video_id = video_id_from_url(url)
+    try:
+        with open("cache.json", "r") as f:
+            cache = json.load(f)
+    except FileNotFoundError:
+        return {"message": "Cache not found"}
+
+    if video_id in cache:
+        return {"message": cache[video_id]}
+    else:
+        return {"message": f"Video {video_id} not in cache"}
 
 
 if __name__ == "__main__":
