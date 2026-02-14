@@ -1,7 +1,23 @@
 from pytubefix import YouTube
 from pytubefix.exceptions import VideoUnavailable, AgeRestrictedError
 import os
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+
+def video_id_from_url(url: str) -> str:
+    """Extract YouTube video ID from URL (watch or shorts)."""
+    # watch: ?v=VIDEO_ID
+    m = re.search(r"[?&]v=([^&]+)", url)
+    if m:
+        return m.group(1)
+    # shorts: /shorts/VIDEO_ID
+    m = re.search(r"/shorts/([^/?]+)", url)
+    if m:
+        return m.group(1)
+    # fallback: use a safe slug from the last path segment
+    return re.sub(r"[^a-zA-Z0-9_-]", "_", url.split("/")[-1].split("?")[0]) or "video"
+
 
 def download_video_max_720p(url, download_path="videos"):
     """
@@ -25,11 +41,13 @@ def download_video_max_720p(url, download_path="videos"):
         ).order_by('resolution').asc().first()
 
         if stream:
+            video_id = video_id_from_url(url)
+            filename = f"{video_id}.mp4"
             print(f"Stream found: {stream.resolution} (Progressive, with audio)")
             print("Starting download...")
-            stream.download(output_path=download_path)
+            stream.download(output_path=download_path, filename=filename)
             print(f"Download complete! Saved in '{download_path}'")
-            return stream.default_filename
+            return filename
         else:
             print("Error: No progressive stream found (mp4 with audio and video).")
             return None
