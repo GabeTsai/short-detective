@@ -248,6 +248,7 @@
   let userScrollCount = 0;
   let viewingStartTime = null;
   let trackingUserScrolls = false;
+  let userVisitedInPhase = new Set();
   
     // ---------- UI helpers ----------
     function setStatus(s) {
@@ -399,6 +400,12 @@
 
       if (isFirstCycle) isFirstCycle = false;
       updateDebug("Watching... (0/8 scrolled)");
+    } else {
+      // Didn't collect enough — still need to clean up
+      console.log(`[YTSS] Only collected ${collectedInThisCycle}/8 — ending cycle`);
+      collectionRunning = false;
+      hidePopup();
+      startUserScrollTracking();
     }
   }
 
@@ -445,12 +452,21 @@
   // ---------- User Scroll Tracking ----------
   function startUserScrollTracking() {
     userScrollCount = 0;
+    userVisitedInPhase.clear();
+    // Add the starting video so it doesn't count
+    userVisitedInPhase.add(canonicalShortsUrl(location.href));
     viewingStartTime = Date.now();
     trackingUserScrolls = true;
   }
 
   function onUserScroll() {
     if (!trackingUserScrolls || !isCollecting) return;
+
+    const currentUrl = canonicalShortsUrl(location.href);
+
+    // Only count if this is a NEW video we haven't visited in this phase
+    if (userVisitedInPhase.has(currentUrl)) return;
+    userVisitedInPhase.add(currentUrl);
 
     userScrollCount++;
     updateDebug(`Watching... (${userScrollCount}/8 scrolled)`);
