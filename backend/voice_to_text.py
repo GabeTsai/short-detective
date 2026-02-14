@@ -1,5 +1,10 @@
 """
-Toy audio transcription using Mistral Voxtral Small 1.0 (24B) — self-hosted on Modal H100 with vLLM.
+Batch audio transcription using Mistral Voxtral Mini 3B — self-hosted on Modal with vLLM.
+
+Uses Voxtral-Mini-3B-2507 for batch transcription of pre-recorded audio files.
+Supports 8 languages, up to 30 minutes of audio per file.
+
+Note: For streaming/real-time transcription, use Voxtral-Mini-4B-Realtime instead.
 
 The model weights are loaded and run on GPU in serve(). vLLM exposes an OpenAI-compatible HTTP API;
 we use the openai library as a plain HTTP client pointed at your own server URL.
@@ -37,23 +42,37 @@ from typing import Optional
 import modal
 
 # Re-export for callers that import from this module
-__all__ = ["app", "voice_to_text", "serve"]
+__all__ = ["app", "voice_to_text", "transcribe", "serve"]
 
 # Import config - will work locally and in Modal after we add it to the image
 from backend import config
 
-# Container: vLLM with audio support for Voxtral (installs mistral_common automatically)
-# IMPORTANT: .add_local_python_source() must come LAST to avoid rebuilds on every code change
+# Container: Build from CUDA base following the exact working pattern from HuggingFace
+# See: https://huggingface.co/mistralai/Voxtral-Mini-4B-Realtime-2602/discussions/15
 vllm_image = (
     modal.Image.from_registry(
-        config.VOXTRAL_IMAGE_CUDA,
-        add_python=config.VOXTRAL_IMAGE_PYTHON,
+        "nvidia/cuda:12.9.0-devel-ubuntu22.04",
+        add_python="3.12",
     )
-    .env({"HF_XET_HIGH_PERFORMANCE": "1"})
+    .entrypoint([])
+    .env({
+        "HF_XET_HIGH_PERFORMANCE": "1",
+        "VLLM_DISABLE_COMPILE_CACHE": "1",  # Required for Voxtral Realtime
+    })
+    # Use Modal's native uv_pip_install for nightly vLLM with audio support
     .uv_pip_install(
-        config.VOXTRAL_VLLM_INSTALL,
-        config.VOXTRAL_HUB_INSTALL,
-        "python-dotenv",  # For config.py to load .env
+        "vllm[audio]",
+        extra_index_url=config.VOXTRAL_VLLM_NIGHTLY_INDEX,
+        extra_options="--torch-backend=cu129",
+    )
+    # Install mistral-common with audio extras and other dependencies
+    .uv_pip_install(
+        "mistral-common[audio]",
+        "soxr",
+        "librosa",
+        "soundfile",
+        "huggingface-hub>=0.36.0",
+        "python-dotenv",
     )
     .add_local_python_source("backend")  # Include the backend package (must be LAST!)
 )
@@ -81,27 +100,30 @@ app = modal.App(config.MODAL_APP_NAME_VOXTRAL)
 )
 @modal.web_server(
     port=8000,  # Hardcoded to ensure it's available at decorator evaluation time
-    startup_timeout=15 * 60,  # 15 minutes in seconds
+    startup_timeout=15 * 60, 
 )
 def serve():
-    """Run vLLM serving Voxtral in OpenAI-compatible mode (includes /v1/audio/transcriptions)."""
+    """Run vLLM serving Voxtral Mini 3B for batch audio transcription.
+    
+    This model is optimized for batch transcription of pre-recorded audio files.
+    Supports 8 languages, up to 30 minutes of audio, with transcription and translation.
+    """
+    # Voxtral Mini 3B (batch transcription) configuration
+    # See: https://huggingface.co/mistralai/Voxtral-Mini-3B-2507
     cmd = [
         "vllm",
         "serve",
         config.VOXTRAL_MODEL_ID,
-        "--tokenizer_mode", "mistral",
-        "--config_format", "mistral",
-        "--load_format", "mistral",
-        "--tensor-parallel-size", str(config.VOXTRAL_N_GPU),
-        "--tool-call-parser", "mistral",
-        "--enable-auto-tool-choice",
         "--host", "0.0.0.0",
         "--port", "8000",
+        "--uvicorn-log-level", "debug"
     ]
-    print("Starting vLLM:", " ".join(cmd))
+    
+    print("Starting vLLM with Voxtral Mini 3B (batch):", " ".join(cmd))
     
     # Start vLLM - Modal's @web_server decorator handles waiting for readiness
-    subprocess.Popen(" ".join(cmd), shell=True)
+    # Don't use shell=True to avoid quote escaping issues with JSON
+    subprocess.Popen(cmd)
 
 
 def voice_to_text(
@@ -120,6 +142,10 @@ def voice_to_text(
     
     Returns:
         The transcription text.
+    
+    Note:
+        This uses batch transcription mode for pre-recorded audio files.
+        The target_streaming_delay_ms parameter only applies to streaming mode.
     """
     from openai import OpenAI
     from mistral_common.audio import Audio
@@ -128,6 +154,7 @@ def voice_to_text(
     import httpx
 
     lang = language if language is not None else config.DEFAULT_TRANSCRIPTION_LANGUAGE
+    
     # OpenAI lib is just an HTTP client here; no OpenAI API key needed for self-hosted vLLM
     client = OpenAI(
         api_key="EMPTY",
@@ -148,10 +175,11 @@ def voice_to_text(
         model_id = config.VOXTRAL_MODEL_ID
 
     print(f"Transcribing audio file: {audio_path}")
-    audio = Audio.from_file(audio_path, strict=False)
+    audio = Audio.from_file(audio_path, strict=False)    
     raw = RawAudio.from_audio(audio)
     
     # Convert to OpenAI format, excluding Mistral-specific parameters
+    # Note: target_streaming_delay_ms only applies to streaming mode, not batch transcription
     req = TranscriptionRequest(
         model=model_id,
         audio=raw,
@@ -165,12 +193,80 @@ def voice_to_text(
 
     try:
         response = client.audio.transcriptions.create(**req)
-        return response.text if hasattr(response, "text") else str(response)
+        
+        # Check if the response contains an error
+        if hasattr(response, "error") and response.error:
+            error_msg = response.error.get("message", "Unknown error")
+            error_type = response.error.get("type", "Unknown")
+            print(f"Server returned error: {error_type} - {error_msg}")
+            print(f"Full error details: {response.error}")
+            raise RuntimeError(f"Transcription failed: {error_msg}. Check Modal logs for details.")
+        
+        # Extract transcription text
+        if hasattr(response, "text") and response.text:
+            return response.text
+        elif isinstance(response, str):
+            return response
+        elif isinstance(response, dict):
+            return response.get("text", "")
+        else:
+            print(f"Warning: Unexpected response format: {type(response)}")
+            print(f"Response: {response}")
+            return str(response) if response else ""
+            
     except TypeError as e:
-        # If we get parameter errors, try to identify which parameter is the problem
-        print(f"Error: {e}")
-        print(f"Full request keys: {list(req.keys())}")
+        print(f"TypeError: {e}")
+        print(f"Request keys: {list(req.keys())}")
         raise
+    except Exception as e:
+        print(f"Transcription error: {e}")
+        raise
+
+
+def transcribe(
+    audio_path: str,
+    language: Optional[str] = None,
+    url: Optional[str] = None,
+    timeout: int = 300,
+) -> str:
+    """
+    Convenience function for transcribing audio that automatically handles the modal URL
+    
+    Args:
+        audio_path: Path to the audio file to transcribe (e.g., "test_data/test_audio_2.mp3")
+        language: Optional ISO language code (e.g., "en", "es", "fr"). Auto-detects if None.
+        url: Optional modal server URL. If None, uses TRANSCRIPTION_URL from .env.
+        timeout: Timeout in seconds for API calls (default 300s = 5 minutes).
+    
+    Returns:
+        The transcription text.
+    
+    Raises:
+        RuntimeError: If no server URL is configured and none provided.
+        Exception: If transcription fails (network, audio format, etc.)
+    
+    Examples:
+        >>> # Using env var TRANSCRIPTION_URL
+        >>> text = transcribe("audio.mp3")
+        
+        >>> # With specific language
+        >>> text = transcribe("audio.mp3", language="es")
+        
+        >>> # With custom URL
+        >>> text = transcribe("audio.mp3", url="https://my-server.modal.run")
+    """
+    # Get URL from config if not provided
+    server_url = url or config.get_transcription_url()
+    
+    if not server_url:
+        raise RuntimeError(
+            "No transcription server URL configured. Either:\n"
+            "1. Set TRANSCRIPTION_URL in your .env file, or\n"
+            "2. Pass url parameter explicitly, or\n"
+            "3. Deploy the server: modal deploy backend/voice_to_text.py"
+        )
+    
+    return voice_to_text(audio_path, server_url, language=language, timeout=timeout)
 
 
 @app.local_entrypoint()

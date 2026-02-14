@@ -6,7 +6,7 @@ import time
 def test_voice_to_text():
     url = config.get_transcription_url()
     
-    print(f"Testing transcription with URL: {url}")
+    print(f"Testing transcription with modal server URL: {url}")
     
     # Check if server is responsive
     print("Checking server health...")
@@ -19,7 +19,7 @@ def test_voice_to_text():
     
     # Check if models are loaded
     print("Checking if model is loaded...")
-    max_retries = 3
+    max_retries = 0
     for i in range(max_retries):
         try:
             response = urllib.request.urlopen(f"{url}/v1/models", timeout=10)
@@ -37,8 +37,7 @@ def test_voice_to_text():
     
     # Perform transcription
     print("\nStarting transcription...")
-    text = voice_to_text("test_data/cat.mp3", url, language="en", timeout=300)
-    
+    text = voice_to_text("test_data/test_audio_2.mp3", url)
     print(f"\n--- Transcript ({len(text)} characters) ---")
     print(text)
     print("---\n")
