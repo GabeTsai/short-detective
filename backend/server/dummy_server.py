@@ -1,7 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 import time
+
+
+class SendUrlsBody(BaseModel):
+    urls: list[str]
 
 
 app = FastAPI()
@@ -16,8 +21,8 @@ app.add_middleware(
 
 
 @app.post("/send_urls", status_code=204)
-def send_urls(urls: list[str]):
-    """Accepts a list of URL strings. Returns nothing."""
+def send_urls(body: SendUrlsBody):
+    """Accepts a body with urls list. Returns nothing."""
     pass
 
 

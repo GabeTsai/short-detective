@@ -16,7 +16,7 @@ root_dir = Path(__file__).resolve().parent.parent.parent
 load_dotenv(root_dir / ".env")
 
 
-def _process_single_video(path: str, url: str) -> tuple[str, str]:
+def _process_single_video(path: str, url: str, storage_dict: dict) -> tuple[str, str]:
     """Process a single video with parallelized subtasks."""
 
     def audio_and_transcription():
@@ -55,24 +55,33 @@ def _process_single_video(path: str, url: str) -> tuple[str, str]:
 
     client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
-    response = client.chat.completions.create(
+    stream = client.chat.completions.create(
         model="gpt-5-mini-2025-08-07",
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": message}
-        ]
+        ],
+        stream=True,
     )
-    return path, response.choices[0].message.content
+
+    chunks = []
+    storage_dict[path] = chunks
+    for chunk in stream:
+        delta = chunk.choices[0].delta
+        if delta.content:
+            chunks.append(delta.content)
+    
+    return path, "".join(chunks)
 
 
-def summarize_videos(paths: list[tuple[str, str]]) -> dict:
+def summarize_videos(paths: list[tuple[str, str]], storage_dict) -> dict:
     print(paths)
     return_dict = {}
 
     # Process all videos in parallel with 16 threads
     with ThreadPoolExecutor(max_workers=16) as executor:
         futures = {
-            executor.submit(_process_single_video, path, url): path
+            executor.submit(_process_single_video, path, url, storage_dict): path
             for path, url in paths
         }
 
@@ -90,7 +99,26 @@ def summarize_videos(paths: list[tuple[str, str]]) -> dict:
 
 if __name__ == "__main__":
     import time
+    import threading
+
     start = time.perf_counter()
-    x = summarize_videos([('videos/35KWWdck7zM.mp4', 'https://www.youtube.com/shorts/AVeuGFSSAxQ'), ('videos/AVeuGFSSAxQ.mp4', 'https://www.youtube.com/shorts/35KWWdck7zM')])
-    print(x)
+    storage_dict = {}
+    result = {}
+
+    def run():
+        nonlocal result
+        result = summarize_videos(
+            [('videos/35KWWdck7zM.mp4', 'https://www.youtube.com/shorts/AVeuGFSSAxQ'),
+             ('videos/AVeuGFSSAxQ.mp4', 'https://www.youtube.com/shorts/35KWWdck7zM')],
+            storage_dict,
+        )
+
+    t = threading.Thread(target=run)
+    t.start()
+
+    while t.is_alive():
+        print({path: "".join(chunks) for path, chunks in storage_dict.items()})
+        time.sleep(3)
+
+    print("Final result:", result)
     print(time.perf_counter() - start)
