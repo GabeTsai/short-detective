@@ -80,13 +80,11 @@ app = modal.App(config.MODAL_APP_NAME_VOXTRAL)
     },
 )
 @modal.web_server(
-    port=config.VLLM_PORT,
-    startup_timeout=config.VOXTRAL_STARTUP_TIMEOUT_MINUTES * config.SECONDS_PER_MINUTE,
+    port=8000,  # Hardcoded to ensure it's available at decorator evaluation time
+    startup_timeout=15 * 60,  # 15 minutes in seconds
 )
 def serve():
     """Run vLLM serving Voxtral in OpenAI-compatible mode (includes /v1/audio/transcriptions)."""
-    import signal
-    
     cmd = [
         "vllm",
         "serve",
@@ -98,44 +96,12 @@ def serve():
         "--tool-call-parser", "mistral",
         "--enable-auto-tool-choice",
         "--host", "0.0.0.0",
-        "--port", str(config.VLLM_PORT),
+        "--port", "8000",
     ]
     print("Starting vLLM:", " ".join(cmd))
     
-    # Start vLLM in the background
-    process = subprocess.Popen(" ".join(cmd), shell=True)
-    
-    # Wait for vLLM to be ready by checking the health endpoint
-    import urllib.request
-    import json
-    max_attempts = 120  # 10 minutes (120 * 5 seconds)
-    for i in range(max_attempts):
-        try:
-            response = urllib.request.urlopen(f"http://localhost:{config.VLLM_PORT}/health", timeout=5)
-            if response.status == 200:
-                print(f"✓ vLLM server is ready on port {config.VLLM_PORT}")
-                break
-        except Exception as e:
-            if i == 0:
-                print(f"Waiting for vLLM to start (this may take several minutes)...")
-            elif i % 12 == 0:  # Print every minute
-                print(f"  Still waiting... ({i * 5}s elapsed)")
-            time.sleep(5)
-    else:
-        print("⚠ Warning: vLLM did not respond to health check in time")
-    
-    # Keep the function running by waiting on the process
-    # This ensures Modal's web server stays active
-    def signal_handler(signum, frame):
-        print("Received shutdown signal, terminating vLLM...")
-        process.terminate()
-        process.wait()
-    
-    signal.signal(signal.SIGTERM, signal_handler)
-    signal.signal(signal.SIGINT, signal_handler)
-    
-    # Wait for the process to exit (blocks here)
-    process.wait()
+    # Start vLLM - Modal's @web_server decorator handles waiting for readiness
+    subprocess.Popen(" ".join(cmd), shell=True)
 
 
 def voice_to_text(
