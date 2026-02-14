@@ -300,6 +300,22 @@
       await scrollBackToStart();
       collectionRunning = false;
 
+      // Send latest batch to backend
+      const latestBatch = allCollectedUrlsPersistent.slice(-8);
+      updatePopupProgress("Sending to backend...");
+      chrome.runtime.sendMessage(
+        { type: "SEND_TO_BACKEND", urls: latestBatch },
+        (res) => {
+          if (chrome.runtime.lastError) {
+            console.error("[YTSS] Backend send error:", chrome.runtime.lastError);
+          } else if (res?.ok) {
+            console.log("[YTSS] ✓ Batch sent to backend");
+        } else {
+            console.log("[YTSS] Backend unavailable:", res?.error || "unknown");
+          }
+        }
+      );
+
       // Reset cycle-specific state
         collectedInThisCycle = 0;
       collectedUrls.clear();
@@ -317,7 +333,7 @@
   // ---------- Scroll Back — stop when originalVideoUrl reached ----------
   async function scrollBackToStart() {
     const targetUrl = canonicalShortsUrl(originalVideoUrl);
-    console.log(`[YTSS] Scrolling back to: ${targetUrl}`);
+      console.log(`[YTSS] Scrolling back to: ${targetUrl}`);
 
     for (let i = 0; i < 12; i++) {
       // Check BEFORE scrolling
