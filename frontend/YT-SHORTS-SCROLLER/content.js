@@ -9,8 +9,8 @@
   
     // ---------- Config ----------
     const CONFIG = {
-      targetCount: 20,
-      collectionPauseMs: 10000, // 10 second pause before starting
+      targetCount: 8,
+      collectionPauseMs: 0, // No initial pause — start immediately
       scrollDelayMs: 300, // Delay between scrolls (ArrowDown)
       scrollBackDelayMs: 100, // Delay when scrolling back up
       viewerUrlPollMs: 200
@@ -864,11 +864,11 @@
       });
     }
 
-    // Wait for URL to change, polling every 50ms, max 1s
-    async function waitForUrlChange(beforeUrl, maxMs = 1000) {
-      const polls = Math.ceil(maxMs / 50);
+    // Wait for URL to change, polling every 10ms
+    async function waitForUrlChange(beforeUrl, maxMs = 280) {
+      const polls = Math.ceil(maxMs / 10);
       for (let i = 0; i < polls; i++) {
-        await sleep(50);
+        await sleep(10);
         if (canonicalShortsUrl(location.href) !== beforeUrl) return true;
       }
       return false;
@@ -881,41 +881,30 @@
       // Focus once before the whole down-scroll phase
       focusPlayer();
 
-      while (isCollecting && collectionRunning && collectedInThisCycle < 20) {
+      while (isCollecting && collectionRunning && collectedInThisCycle < 8) {
         collectCurrentUrl();
 
-        // Handle preloading glitch at every 8th video
-        if (collectedInThisCycle > 0 && collectedInThisCycle % 8 === 0) {
-          console.log(`[YTSS] Preload bounce at ${collectedInThisCycle} videos`);
-          updateDebug(`Preload bounce at ${collectedInThisCycle} videos...`);
-          const beforeUp = canonicalShortsUrl(location.href);
-          dispatchKey("ArrowUp");
-          await waitForUrlChange(beforeUp, 1500);
-          const beforeDown = canonicalShortsUrl(location.href);
-          dispatchKey("ArrowDown");
-          await waitForUrlChange(beforeDown, 1500);
-        }
+        // Preload bounce not needed for 8 videos — YouTube preloads 8 at a time
+        // if (collectedInThisCycle > 0 && collectedInThisCycle % 8 === 0) {
+        //   ...
+        // }
 
-        // If we hit 20, break out to scroll back
-        if (collectedInThisCycle >= 20) break;
+        // If we hit 8, break out to scroll back
+        if (collectedInThisCycle >= 8) break;
 
         // Scroll down and wait for URL change (max 1s)
         scrollCount++;
         const before = canonicalShortsUrl(location.href);
         dispatchKey("ArrowDown");
-        const changed = await waitForUrlChange(before);
-        if (changed) {
-          console.log(`[YTSS] ↓ ${scrollCount}: URL changed`);
-        } else {
-          console.log(`[YTSS] ↓ ${scrollCount}: URL didn't change after 1s`);
-        }
+        const changed = await waitForUrlChange(before, 280);
+        if (!changed) console.log(`[YTSS] ↓ ${scrollCount}: no change in 280ms`);
       }
 
       // Collect the last URL after the loop ends
       collectCurrentUrl();
 
-      if (collectedInThisCycle >= 20) {
-        updateDebug(`Collected 20 URLs! Scrolling back...`);
+      if (collectedInThisCycle >= 8) {
+        updateDebug(`Collected 8 URLs! Scrolling back...`);
         collectionRunning = false;
 
         const firstCollectedUrl = collectedUrlsInCycle.length > 0 ? collectedUrlsInCycle[0] : null;
@@ -929,11 +918,11 @@
         collectedUrls.clear();
         collectedUrlsInCycle.length = 0;
 
-        setTimeout(() => startCollectionCycle(), 2000);
+        setTimeout(() => startCollectionCycle(), 1000);
       }
     }
 
-    // Scroll back up exactly 20 videos (focus once, 50ms polling)
+    // Scroll back up exactly 8 videos
     async function scrollBackToStart(firstCollectedUrl = null) {
       const targetUrl = firstCollectedUrl
         ? canonicalShortsUrl(firstCollectedUrl)
@@ -943,34 +932,31 @@
       updateDebug("Scrolling back...");
 
       // No focus/delay — start scrolling up immediately
-      for (let i = 0; i < 20; i++) {
+      for (let i = 0; i < 8; i++) {
         const before = canonicalShortsUrl(location.href);
         dispatchKey("ArrowUp");
-        const changed = await waitForUrlChange(before, 1500);
-        console.log(`[YTSS] ↑ ${i + 1}/20: ${changed ? canonicalShortsUrl(location.href) : 'no change'}`);
-        if (i > 0 && i % 5 === 0) updateDebug(`Scrolling back... ${i + 1}/20`);
+        await waitForUrlChange(before, 400);
       }
 
       const finalUrl = canonicalShortsUrl(location.href);
       if (finalUrl === targetUrl) {
         updateDebug("Returned to start ✓");
-        console.log(`[YTSS] Perfect match after 20 scrolls!`);
         return true;
       }
 
-      // Try up to 5 more scrolls if mismatch
+      // Try up to 3 more scrolls if mismatch
       console.log(`[YTSS] Mismatch: expected ${targetUrl}, got ${finalUrl}`);
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < 3; i++) {
         const before = canonicalShortsUrl(location.href);
         dispatchKey("ArrowUp");
-        await waitForUrlChange(before, 1500);
+        await waitForUrlChange(before, 200);
         if (canonicalShortsUrl(location.href) === targetUrl) {
           updateDebug(`Found target after ${i + 1} extra scrolls!`);
           return true;
         }
       }
 
-      updateDebug(`Warning: could not match start URL after 25 scrolls`);
+      updateDebug(`Warning: could not match start URL`);
       return false;
     }
 
