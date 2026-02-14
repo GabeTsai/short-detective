@@ -5,10 +5,12 @@
   "description": "Analyze YouTube Shorts and see what's coming next",
   "permissions": [
     "activeTab",
-    "storage"
+    "storage",
+    "debugger"
   ],
   "host_permissions": [
-    "http://localhost:8080/*"
+    "http://localhost:8080/*",
+    "*://*.youtube.com/*"
   ],
   "action": {
     "default_popup": "popup.html",
@@ -21,13 +23,7 @@
     {
       "matches": ["*://www.youtube.com/*"],
       "js": ["content.js"],
-      "run_at": "document_start"
-    }
-  ],
-  "web_accessible_resources": [
-    {
-      "resources": ["inject.js"],
-      "matches": ["*://www.youtube.com/*"]
+      "run_at": "document_idle"
     }
   ]
 }

@@ -49,7 +49,12 @@
         showResult(response?.error || 'Something went wrong.', 'error');
       }
     } catch (err) {
-      showResult(err.message || 'Something went wrong.', 'error');
+      // Better error message for "receiving end does not exist"
+      if (err.message?.includes('Receiving end does not exist')) {
+        showResult('Content script not loaded. Try refreshing the YouTube page.', 'error');
+      } else {
+        showResult(err.message || 'Something went wrong.', 'error');
+      }
     } finally {
       setLoading(false);
     }
