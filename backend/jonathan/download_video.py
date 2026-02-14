@@ -4,6 +4,8 @@ import os
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+TEMP_DIR = "temp"
+
 
 def video_id_from_url(url: str) -> str:
     """Extract YouTube video ID from URL (watch or shorts)."""
@@ -22,7 +24,8 @@ def video_id_from_url(url: str) -> str:
 def download_video_max_720p(url, download_path="videos", duration=30):
     """
     Downloads the first `duration` seconds of a video using pytubefix + ffmpeg.
-    Skips if already downloaded. Uses lowest progressive stream for speed.
+    Downloads 144p video + best audio separately, then merges.
+    Skips if already downloaded.
     Returns filename (e.g., "VIDEO_ID.mp4") or None on failure.
     """
     try:
@@ -37,32 +40,70 @@ def download_video_max_720p(url, download_path="videos", duration=30):
             return filename
 
         yt = YouTube(url)
-        stream = (
+
+        video_stream = (
             yt.streams
-              .filter(progressive=True, file_extension="mp4")
-              .order_by("resolution")
+              .filter(res="144p", only_video=True)
+              .order_by("bitrate")
               .first()
         )
-
-        if stream is None:
-            print(f"Error downloading {url}: No progressive MP4 stream found.")
+        if video_stream is None:
+            print(f"Error downloading {url}: No 144p video stream found.")
             return None
 
-        result = subprocess.run(
-            [
-                "ffmpeg", "-y",
-                "-ss", "0",
-                "-t", str(duration),
-                "-i", stream.url,
-                "-c", "copy",
-                output_path,
-            ],
-            capture_output=True, text=True,
+        audio_stream = (
+            yt.streams
+              .filter(only_audio=True)
+              .order_by("abr")
+              .desc()
+              .first()
         )
-
-        if result.returncode != 0:
-            print(f"Error downloading {url}: {result.stderr.strip()}")
+        if audio_stream is None:
+            print(f"Error downloading {url}: No audio stream found.")
             return None
+
+        # Use temp directory for intermediate files
+        os.makedirs(TEMP_DIR, exist_ok=True)
+        video_tmp = os.path.join(TEMP_DIR, f"{video_id}_video")
+        audio_tmp = os.path.join(TEMP_DIR, f"{video_id}_audio")
+        video_file = video_stream.download(filename=video_tmp)
+        audio_file = audio_stream.download(filename=audio_tmp)
+
+        try:
+            result = subprocess.run(
+                [
+                    "ffmpeg", "-y",
+                    "-i", video_file,
+                    "-i", audio_file,
+                    "-t", str(duration),
+                    "-c", "copy",
+                    output_path,
+                ],
+                capture_output=True, text=True,
+            )
+            if result.returncode != 0:
+                raise subprocess.CalledProcessError(result.returncode, "ffmpeg")
+        except subprocess.CalledProcessError:
+            result = subprocess.run(
+                [
+                    "ffmpeg", "-y",
+                    "-i", video_file,
+                    "-i", audio_file,
+                    "-t", str(duration),
+                    "-c:v", "libx264", "-crf", "30", "-preset", "veryfast",
+                    "-c:a", "aac", "-b:a", "96k",
+                    output_path,
+                ],
+                capture_output=True, text=True,
+            )
+            if result.returncode != 0:
+                print(f"Error downloading {url}: {result.stderr.strip()}")
+                return None
+        finally:
+            # Clean up temp files
+            for f in (video_file, audio_file):
+                if os.path.exists(f):
+                    os.remove(f)
 
         print(f"Downloaded (first {duration}s): {output_path}")
         return filename
@@ -101,11 +142,11 @@ if __name__ == "__main__":
     video_urls = [
         "https://www.youtube.com/shorts/jEDcdCP-Psc",
         "https://www.youtube.com/shorts/52J14uYn2sk",
-        "https://www.youtube.com/shorts/EaDxKdpvMhc", 
+        "https://www.youtube.com/shorts/EaDxKdpvMhc",
         "https://www.youtube.com/shorts/7cXrS2KqKMY",
-        "https://www.youtube.com/shorts/l2UjV7QbUq0", 
-        "https://www.youtube.com/shorts/HZ5V1oKRONQ", 
-        "https://www.youtube.com/shorts/t4Sx9bxq9AU", 
+        "https://www.youtube.com/shorts/l2UjV7QbUq0",
+        "https://www.youtube.com/shorts/HZ5V1oKRONQ",
+        "https://www.youtube.com/shorts/t4Sx9bxq9AU",
         "https://www.youtube.com/shorts/4Q2ErSJjSIo"
     ]
     start = time.perf_counter()
