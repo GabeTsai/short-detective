@@ -50,14 +50,14 @@
 
   // ---------- Popup Overlay ----------
   const TIPS = [
-    "Tip A",
-    "Tip B",
-    "Tip C",
-    "Tip D",
-    "Tip E",
-    "Tip F",
-    "Tip G",
-    "Tip H"
+    "Verify claims using multiple credible, independent sources.",
+    "Check the original source, not just reposted snippets.",
+    "Look for emotional manipulation or outrage-driven language.",
+    "Examine dates to avoid outdated information reshared misleadingly.",
+    "Investigate the author's credentials and potential conflicts.",
+    "Beware of headlines that oversimplify complex issues.",
+    "Reverse-search images to detect altered or reused media.",
+    "Pause before sharing; accuracy matters more than speed."
   ];
   let tipInterval = null;
   let tipIndex = 0;
@@ -71,7 +71,6 @@
         <div id="ytss-popup-tips"></div>
         <div id="ytss-popup-loader">
           <div class="ytss-spinner"></div>
-          <span id="ytss-popup-progress"></span>
         </div>
       </div>
     `;
@@ -129,16 +128,13 @@
 
   function showPopup(type, data = {}) {
     const title = popupOverlay.querySelector("#ytss-popup-title");
-    const progress = popupOverlay.querySelector("#ytss-popup-progress");
 
     if (type === "welcome") {
       title.textContent = "Sauce, Please?";
-      progress.textContent = "Collecting URLs...";
       startTipRotation();
     } else if (type === "summary") {
       const seconds = Math.round((data.viewingTime || 0) / 1000);
       title.textContent = `${seconds}s on the last 8 reels`;
-      progress.textContent = "Collecting next 8 URLs...";
       startTipRotation();
     }
 
@@ -146,8 +142,7 @@
   }
 
   function updatePopupProgress(msg) {
-    const progress = popupOverlay.querySelector("#ytss-popup-progress");
-    if (progress) progress.textContent = msg;
+    // progress element removed — no-op
   }
 
   function hidePopup() {
@@ -355,24 +350,24 @@ This content represents a well-executed example of trend-based Shorts creation.`
     let html = `<div style="margin-bottom: 6px; position: relative;">
   <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 0;">
     <span style="font-family: 'Libre Baskerville', Georgia, serif; font-size: 15px; font-weight: 700; color: #000;">Mismatch Level</span>
-    ${infoBubble("We judged the mismatch level with xyz procedures.")}
+    ${infoBubble("Assessed by comparing the video's content with its implied claims to determine if the footage matches what it represents.")}
   </div>
   <div style="font-family: 'Libre Baskerville', Georgia, serif; font-size: 26px; font-weight: 700; color: ${levelColor(mLevel)}; margin-top: 0;">${mLevel}</div>
 </div>`;
 
     // Section headers paired with paragraphs
     const sections = [
-      ["Video Risk",        vLevel, paragraphs[0] || ""],
-      ["Context Risk",      cLevel, paragraphs[1] || ""],
-      ["Presentation Risk", pLevel, paragraphs[2] || ""]
+      ["Video Risk",        vLevel, paragraphs[0] || "", "Determined by evaluating signs of manipulation, deepfakes, fabricated claims, or harmful misinformation."],
+      ["Context Risk",      cLevel, paragraphs[1] || "", "Based on whether missing background information could distort meaning or mislead viewers."],
+      ["Presentation Risk", pLevel, paragraphs[2] || "", "Evaluated by analyzing editing style, tone, and framing for manipulative intent."]
     ];
 
-    for (const [label, level, para] of sections) {
+    for (const [label, level, para, tooltip] of sections) {
       const escapedPara = para.replace(/</g, "&lt;").replace(/>/g, "&gt;");
       html += `
 <div style="display: flex; align-items: center; gap: 6px; margin: 8px 0 4px 0;">
   <span style="color: #1a1a1a; font-size: 17px; font-family: 'Libre Baskerville', Georgia, serif; font-weight: 700;">${label}: <span style="color: ${levelColor(level)};">${level}</span></span>
-  ${infoBubble("Explanation of " + label.toLowerCase() + " assessment.")}
+  ${infoBubble(tooltip)}
 </div>
 <div style="margin-bottom: 4px;">${escapedPara}</div>`;
     }
@@ -938,5 +933,22 @@ This content represents a well-executed example of trend-based Shorts creation.`
     }, 3000);
   }
 
-  // (Auto-start is handled above after button listeners section)
+  // ---------- URL Watcher: hide UI when not on /shorts/ ----------
+  let wasOnShorts = true;
+  setInterval(() => {
+    const onShorts = location.pathname.startsWith("/shorts/");
+    if (onShorts && !wasOnShorts) {
+      // Returned to shorts — show UI
+      analysisPanel.style.display = "";
+      popupOverlay.style.display = "";
+      wasOnShorts = true;
+    } else if (!onShorts && wasOnShorts) {
+      // Left shorts — hide UI and stop collection if running
+      analysisPanel.style.display = "none";
+      popupOverlay.style.display = "none";
+      hidePopup();
+      wasOnShorts = false;
+    }
+  }, 500);
+
   })();
