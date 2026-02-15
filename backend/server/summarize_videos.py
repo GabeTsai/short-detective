@@ -15,7 +15,7 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 from concurrent.futures import ThreadPoolExecutor, TimeoutError, as_completed
-
+from web_search_real import search_web_from_transcript_str
 # Load .env from root folder
 root_dir = Path(__file__).resolve().parent.parent.parent
 load_dotenv(root_dir / ".env")
@@ -26,7 +26,8 @@ def _process_single_video(path: str, url: str, storage_dict: dict) -> tuple[str,
 
     def audio_and_transcription():
         audio_path = extract_audio(path)
-        return voice_to_text(audio_path, os.environ["TRANSCRIPTION_URL"])
+        x = voice_to_text(audio_path, os.environ["TRANSCRIPTION_URL"])
+        return search_web_from_transcript_str(x)
 
     def channel_info():
         return check_channel_page(url)
@@ -61,19 +62,20 @@ def _process_single_video(path: str, url: str, storage_dict: dict) -> tuple[str,
             semantic_analysis_info = "Semantic analysis timed out"
 
     system_prompt = """
-    Here is some research on the youtube video and channel. Give a view on the trustworthiness of the video,
-    including any potential misrepresentations. Your inputs may be truncated. When writing your response, 
-    refer to the internal analyses as statements that are highly likely to be true. Refer to 
-    transcription as the transcript of the video. Refer to semantic analysis as Google Gemini's analysis, 
-    and channel page info as the information found on the channel page. Do not refer to ambigious internal 
-    terms, and only use the above terms when referring to the internal analyses.
+    You are an assistant that provides facts and findings.  Give a view on the trustworthiness of the video,
+    including any potential misrepresentations. Your inputs may be truncated. Do not talk down to the user; 
+    your job is to find facts. 
+    
     """
 
     message = f"""
     Given this information, tell users if this video is AI generated, contains misinformation, or tries to promote some kind of agenda. 
     Mismatch level represents how well the content in the video matches the facts we found (think of it as video risk). 
     When giving explanation, donn't use anything like "Presentation risk explanation:". Simply jump straight into the explanation.
-    Transcription: {transcription[:10000]}
+    Consider internal analyses as statements that are highly likely to be true. Refer to semantic analysis as Google Gemini's analysis, 
+    and channel page info as the information found on the channel page. Do not refer to ambigious internal 
+    terms, and only use the above terms when referring to the internal analyses.
+    Perplexity Results: {transcription[:10000]}
     Channel page info: {channel_page_info[:10000]}
     Semantic analysis: {semantic_analysis_info[:10000]}
     Your response should be formatted like this: 
@@ -92,7 +94,7 @@ def _process_single_video(path: str, url: str, storage_dict: dict) -> tuple[str,
     client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
     stream = client.chat.completions.create(
-        model="gpt-5-mini-2025-08-07",
+        model="gpt-5.2-2025-12-11",
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": message}
