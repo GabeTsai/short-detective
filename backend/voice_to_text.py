@@ -42,7 +42,7 @@ from typing import Optional
 import modal
 
 # Re-export for callers that import from this module
-__all__ = ["app", "voice_to_text", "transcribe", "serve"]
+__all__ = ["app", "voice_to_text", "transcribe", "serve", "clear_client_cache"]
 
 # Import config - will work locally and in Modal after we add it to the image
 from backend import config
@@ -87,19 +87,24 @@ vllm_cache_vol = modal.Volume.from_name(
 
 app = modal.App(config.MODAL_APP_NAME_VOXTRAL)
 
+# Client cache to avoid recreating on every call
+_client_cache = {}
+
 
 @app.function(
     image=vllm_image,
     gpu=f"{config.VOXTRAL_GPU_TYPE}:{config.VOXTRAL_N_GPU}",
     timeout=config.VOXTRAL_SERVER_TIMEOUT_MINUTES * config.SECONDS_PER_MINUTE,
-    scaledown_window=config.VOXTRAL_SCALEDOWN_WINDOW_MINUTES * config.SECONDS_PER_MINUTE,
+    # Keep containers warm to avoid cold starts (see config for trade-offs)
+    keep_warm=config.VOXTRAL_KEEP_WARM,
     volumes={
         "/root/.cache/huggingface": hf_cache_vol,
         "/root/.cache/vllm": vllm_cache_vol,
     },
 )
+@modal.concurrent(max_inputs=config.VOXTRAL_MAX_CONCURRENT_REQUESTS)
 @modal.web_server(
-    port=8000,  # Hardcoded to ensure it's available at decorator evaluation time
+    port=8000,
     startup_timeout=15 * 60, 
 )
 def serve():
@@ -155,26 +160,22 @@ def voice_to_text(
 
     lang = language if language is not None else config.DEFAULT_TRANSCRIPTION_LANGUAGE
     
-    # OpenAI lib is just an HTTP client here; no OpenAI API key needed for self-hosted vLLM
-    client = OpenAI(
-        api_key="EMPTY",
-        base_url=self_hosted_vllm_url.rstrip("/") + "/v1",
-        timeout=httpx.Timeout(timeout, read=timeout, write=timeout, connect=10.0),
-        max_retries=0,
-    )
+    # Get or create cached OpenAI client (lightweight, but saves overhead on repeated calls)
+    # OpenAI SDK uses HTTP/1.1 with connection pooling (max 1000 connections by default)
+    cache_key = (self_hosted_vllm_url, timeout)
+    if cache_key not in _client_cache:
+        _client_cache[cache_key] = OpenAI(
+            api_key="EMPTY",
+            base_url=self_hosted_vllm_url.rstrip("/") + "/v1",
+            timeout=httpx.Timeout(timeout, read=timeout, write=timeout, connect=10.0),
+            max_retries=0,
+        )
+    client = _client_cache[cache_key]
     
-    # Get model ID (with timeout protection)
-    print("Fetching model list from server...")
-    try:
-        models = client.models.list()
-        model_id = models.data[0].id
-        print(f"Using model: {model_id}")
-    except Exception as e:
-        print(f"Error listing models: {e}")
-        print("Attempting to use default model ID...")
-        model_id = config.VOXTRAL_MODEL_ID
+    # Use model ID from config (no need to fetch from server every time)
+    model_id = config.VOXTRAL_MODEL_ID
 
-    print(f"Transcribing audio file: {audio_path}")
+    # Load and process audio
     audio = Audio.from_file(audio_path, strict=False)    
     raw = RawAudio.from_audio(audio)
     
@@ -186,41 +187,24 @@ def voice_to_text(
         language=lang,
         temperature=0.0,
     ).to_openai(exclude=("top_p", "seed", "target_streaming_delay_ms"))
-    
-    # Debug: print the request parameters (excluding large audio data)
-    debug_req = {k: v for k, v in req.items() if k != "file"}
-    print(f"Request parameters: {debug_req}")
 
-    try:
-        response = client.audio.transcriptions.create(**req)
-        
-        # Check if the response contains an error
-        if hasattr(response, "error") and response.error:
-            error_msg = response.error.get("message", "Unknown error")
-            error_type = response.error.get("type", "Unknown")
-            print(f"Server returned error: {error_type} - {error_msg}")
-            print(f"Full error details: {response.error}")
-            raise RuntimeError(f"Transcription failed: {error_msg}. Check Modal logs for details.")
-        
-        # Extract transcription text
-        if hasattr(response, "text") and response.text:
-            return response.text
-        elif isinstance(response, str):
-            return response
-        elif isinstance(response, dict):
-            return response.get("text", "")
-        else:
-            print(f"Warning: Unexpected response format: {type(response)}")
-            print(f"Response: {response}")
-            return str(response) if response else ""
-            
-    except TypeError as e:
-        print(f"TypeError: {e}")
-        print(f"Request keys: {list(req.keys())}")
-        raise
-    except Exception as e:
-        print(f"Transcription error: {e}")
-        raise
+    # Send transcription request
+    response = client.audio.transcriptions.create(**req)
+    
+    # Check if the response contains an error
+    if hasattr(response, "error") and response.error:
+        error_msg = response.error.get("message", "Unknown error")
+        raise RuntimeError(f"Transcription failed: {error_msg}. Check Modal logs for details.")
+    
+    # Extract and return transcription text
+    if hasattr(response, "text") and response.text:
+        return response.text
+    elif isinstance(response, str):
+        return response
+    elif isinstance(response, dict):
+        return response.get("text", "")
+    else:
+        return str(response) if response else ""
 
 
 def transcribe(
@@ -230,12 +214,14 @@ def transcribe(
     timeout: int = 300,
 ) -> str:
     """
-    Convenience function for transcribing audio that automatically handles the modal URL
+    Convenience function for transcribing audio with automatic URL handling.
+    
+    If multiple calls arrive in rapid succession, vLLM batches them automatically on the server.
     
     Args:
-        audio_path: Path to the audio file to transcribe (e.g., "test_data/test_audio_2.mp3")
+        audio_path: Path to the audio file to transcribe (e.g., "audio.mp3")
         language: Optional ISO language code (e.g., "en", "es", "fr"). Auto-detects if None.
-        url: Optional modal server URL. If None, uses TRANSCRIPTION_URL from .env.
+        url: Optional server URL. If None, uses TRANSCRIPTION_URL from .env.
         timeout: Timeout in seconds for API calls (default 300s = 5 minutes).
     
     Returns:
@@ -267,6 +253,20 @@ def transcribe(
         )
     
     return voice_to_text(audio_path, server_url, language=language, timeout=timeout)
+
+
+def clear_client_cache():
+    """
+    Clear the cached OpenAI clients.
+    
+    Useful for debugging or if you need to force recreation of clients
+    (e.g., after changing server URLs or network configuration).
+    
+    Example:
+        >>> from backend import clear_client_cache
+        >>> clear_client_cache()
+    """
+    _client_cache.clear()
 
 
 @app.local_entrypoint()

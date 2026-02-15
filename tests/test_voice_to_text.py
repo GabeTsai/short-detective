@@ -37,7 +37,8 @@ def test_voice_to_text():
     
     # Perform transcription
     print("\nStarting transcription...")
-    text = voice_to_text("test_data/test_audio_2.mp3", url)
+    for i in range(8):
+        text = voice_to_text("test_data/test_audio_0.mp3", url)
     print(f"\n--- Transcript ({len(text)} characters) ---")
     print(text)
     print("---\n")

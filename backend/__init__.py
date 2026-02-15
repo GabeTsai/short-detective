@@ -19,13 +19,21 @@ Example usage:
 from backend import config
 
 # Import voice-to-text functionality
-from backend.voice_to_text import voice_to_text, transcribe, app, serve
+from backend.voice_to_text import (
+    voice_to_text,
+    transcribe,
+    clear_client_cache,
+    app,
+    serve,
+)
 
 # Define public API
 __all__ = [
     "config",
-    "transcribe",        # Convenience function (recommended)
-    "voice_to_text",     # Advanced usage
+    "transcribe",           # Convenience function (recommended)
+    "transcribe_batch",     # Batch processing with concurrent requests
+    "voice_to_text",        # Advanced usage
+    "clear_client_cache",   # Clear cached clients (for debugging)
     "app",
     "serve",
 ]

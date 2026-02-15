@@ -49,6 +49,14 @@ VOXTRAL_MAX_CONCURRENT_REQUESTS: int = 100
 This enables vLLM batching - all requests hit the same GPU instead of spawning separate containers.
 Set this high enough to handle your peak concurrent load."""
 
+VOXTRAL_KEEP_WARM: int = 1
+"""Number of containers to keep warm (always running).
+- 0: Scale to zero when idle (cheapest, but has cold starts)
+- 1: Always keep 1 container warm (recommended for production)
+
+- keep_warm=0: $0/hr idle cost, but 1-2 min cold start on first request
+- keep_warm=1: ~$4/hr H100 cost even when idle, but instant response"""
+
 VOXTRAL_STARTUP_TIMEOUT_MINUTES: int = 15
 """Max time to wait for vLLM server to become ready."""
 
