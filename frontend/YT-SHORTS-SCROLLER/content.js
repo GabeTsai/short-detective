@@ -712,11 +712,18 @@ This content represents a well-executed example of trend-based Shorts creation.`
 
       // Send latest batch to backend and get analysis
       const latestBatch = allCollectedUrlsPersistent.slice(-8);
-      updatePopupProgress("Sending to backend...");
       showAnalysisLoading();
+
+      // Safety timeout: hide loading spinner after 15s no matter what
+      const loadingTimeout = setTimeout(() => {
+        hideAnalysisLoading();
+        console.log("[YTSS] Loading spinner timed out after 15s");
+      }, 15000);
+
       chrome.runtime.sendMessage(
         { type: "SEND_TO_BACKEND", urls: latestBatch },
         (res) => {
+          clearTimeout(loadingTimeout);
           hideAnalysisLoading();
           if (chrome.runtime.lastError) {
             console.error("[YTSS] Backend send error:", chrome.runtime.lastError);
