@@ -255,12 +255,11 @@
         toggleBtn.innerHTML = "&#9632;";  // ■ stop icon
         toggleBtn.title = "Stop collection";
         toggleBtn.classList.add("ytss-toggle-active");
-        // --- Dummy test: render dummy results immediately ---
-        renderAnalysisResults(DUMMY_RESULTS);
-        // --- Uncomment below when server is connected ---
-        // bootstrap();
-        // startAnalysisPolling();
-        // startUrlCollection();
+        bootstrap();
+        startAnalysisPolling();
+        startUrlCollection();
+        // --- Dummy test (commented out) ---
+        // renderAnalysisResults(DUMMY_RESULTS);
       } else {
         running = false;
         toggleBtn.innerHTML = "&#9654;";  // ▶ play icon
@@ -275,7 +274,8 @@
 
   const analysisPanel = createAnalysisPanel();
 
-  // ---- Dummy test data (remove when server is connected) ----
+  // ---- Dummy test data (commented out — uncomment to test UI without server) ----
+  /*
   const DUMMY_RESULTS = {
     "dummy": `<div style="margin-bottom: 6px; position: relative;">
   <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 0;">
@@ -289,26 +289,27 @@
   <span style="color: #1a1a1a; font-size: 17px; font-family: 'Libre Baskerville', Georgia, serif; font-weight: 700;">Engagement Patterns</span>
   <span class="ytss-info-btn" style="display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background: #e0e0e0; color: #666; font-size: 11px; font-weight: 700; cursor: pointer; position: relative; user-select: none;" onclick="(function(el){var tip=el.querySelector('.ytss-info-tooltip');if(tip.style.display==='block'){tip.style.display='none';}else{tip.style.display='block';}})(this)">?<span class="ytss-info-tooltip" style="display: none; position: absolute; top: -8px; left: 26px; width: 220px; background: #555; color: #fff; font-size: 12px; font-weight: 400; padding: 10px 12px; border-radius: 8px; line-height: 1.5; z-index: 10; font-family: 'Libre Baskerville', Georgia, serif; box-shadow: 0 2px 8px rgba(0,0,0,0.18);">Analysis of viewer engagement tactics and patterns used in this short.</span></span>
 </div>
-The video employs several proven engagement tactics commonly seen in high-performing Shorts content. The hook appears within the first two seconds with bold text overlay reading "You NEED to try this." There is no traditional introduction or greeting, which aligns with current algorithmic preferences for immediate value delivery. The pacing accelerates toward the final reveal, creating a dopamine loop that encourages replays and shares.
+The video employs several proven engagement tactics commonly seen in high-performing Shorts content.
 
 <div style="display: flex; align-items: center; gap: 6px; margin: 8px 0 4px 0;">
   <span style="color: #1a1a1a; font-size: 17px; font-family: 'Libre Baskerville', Georgia, serif; font-weight: 700;">Content Quality</span>
   <span class="ytss-info-btn" style="display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background: #e0e0e0; color: #666; font-size: 11px; font-weight: 700; cursor: pointer; position: relative; user-select: none;" onclick="(function(el){var tip=el.querySelector('.ytss-info-tooltip');if(tip.style.display==='block'){tip.style.display='none';}else{tip.style.display='block';}})(this)">?<span class="ytss-info-tooltip" style="display: none; position: absolute; top: -8px; left: 26px; width: 220px; background: #555; color: #fff; font-size: 12px; font-weight: 400; padding: 10px 12px; border-radius: 8px; line-height: 1.5; z-index: 10; font-family: 'Libre Baskerville', Georgia, serif; box-shadow: 0 2px 8px rgba(0,0,0,0.18);">Assessment of production value, lighting, audio, and visual elements.</span></span>
 </div>
-Production quality is above average for the Shorts format. Lighting appears to be a combination of natural window light supplemented with a ring light, creating even illumination without harsh shadows. The audio mix balances the background music with ambient cooking sounds effectively, though there is no voiceover narration. Text overlays serve as the primary instructional medium, appearing in a clean sans-serif font with adequate contrast against the background.
+Production quality is above average for the Shorts format.
 
 <div style="display: flex; align-items: center; gap: 6px; margin: 8px 0 4px 0;">
   <span style="color: #1a1a1a; font-size: 17px; font-family: 'Libre Baskerville', Georgia, serif; font-weight: 700;">Audience & Reach</span>
   <span class="ytss-info-btn" style="display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background: #e0e0e0; color: #666; font-size: 11px; font-weight: 700; cursor: pointer; position: relative; user-select: none;" onclick="(function(el){var tip=el.querySelector('.ytss-info-tooltip');if(tip.style.display==='block'){tip.style.display='none';}else{tip.style.display='block';}})(this)">?<span class="ytss-info-tooltip" style="display: none; position: absolute; top: -8px; left: 26px; width: 220px; background: #555; color: #fff; font-size: 12px; font-weight: 400; padding: 10px 12px; border-radius: 8px; line-height: 1.5; z-index: 10; font-family: 'Libre Baskerville', Georgia, serif; box-shadow: 0 2px 8px rgba(0,0,0,0.18);">Target demographics, comment engagement, and content distribution strategy.</span></span>
 </div>
-Based on the content style and hashtags used, this Short targets a demographic of eighteen to thirty-four year olds interested in cooking, food trends, and lifestyle content. The comment section shows high engagement with numerous users tagging friends and requesting the full recipe. The creator has pinned a comment linking to their longer-form YouTube video with detailed instructions, effectively using the Short as a funnel for deeper content consumption.
+Based on the content style and hashtags used, this Short targets a demographic of eighteen to thirty-four year olds.
 
 <div style="display: flex; align-items: center; gap: 6px; margin: 8px 0 4px 0;">
   <span style="color: #1a1a1a; font-size: 17px; font-family: 'Libre Baskerville', Georgia, serif; font-weight: 700;">Recommendations</span>
   <span class="ytss-info-btn" style="display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background: #e0e0e0; color: #666; font-size: 11px; font-weight: 700; cursor: pointer; position: relative; user-select: none;" onclick="(function(el){var tip=el.querySelector('.ytss-info-tooltip');if(tip.style.display==='block'){tip.style.display='none';}else{tip.style.display='block';}})(this)">?<span class="ytss-info-tooltip" style="display: none; position: absolute; top: -8px; left: 26px; width: 220px; background: #555; color: #fff; font-size: 12px; font-weight: 400; padding: 10px 12px; border-radius: 8px; line-height: 1.5; z-index: 10; font-family: 'Libre Baskerville', Georgia, serif; box-shadow: 0 2px 8px rgba(0,0,0,0.18);">Actionable takeaways and suggestions for content creators.</span></span>
 </div>
-This content represents a well-executed example of trend-based Shorts creation. The creator successfully balances entertainment value with instructional content, which tends to perform well across multiple viewer intent categories. For similar creators looking to replicate this format, the key takeaways are to prioritize immediate hooks, maintain rapid pacing throughout, and ensure the final result is visually striking enough to prompt saves and shares among viewers scrolling through their feeds.`
+This content represents a well-executed example of trend-based Shorts creation.`
   };
+  */
 
   function renderAnalysisResults(results) {
     const body = analysisPanel.querySelector("#ytss-analysis-body");
