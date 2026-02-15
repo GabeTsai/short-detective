@@ -155,15 +155,32 @@
   }
 
   let wasMutedBeforePopup = false;
+  let muteInterval = null;
 
-  function showPopup(type, data = {}) {
-    // Mute all videos during overlay
+  function startMuting() {
+    // Save original mute state before we touch anything
     const videos = document.querySelectorAll("video");
-    wasMutedBeforePopup = false;
+    wasMutedBeforePopup = true;
     videos.forEach(v => {
       if (!v.muted) wasMutedBeforePopup = false;
-      v.muted = true;
     });
+    // Mute immediately
+    videos.forEach(v => v.muted = true);
+    // Keep muting every 200ms to catch newly created video elements
+    if (muteInterval) clearInterval(muteInterval);
+    muteInterval = setInterval(() => {
+      document.querySelectorAll("video").forEach(v => v.muted = true);
+    }, 200);
+  }
+
+  function stopMuting() {
+    if (muteInterval) { clearInterval(muteInterval); muteInterval = null; }
+    // Restore mute state
+    document.querySelectorAll("video").forEach(v => v.muted = wasMutedBeforePopup);
+  }
+
+  function showPopup(type, data = {}) {
+    startMuting();
 
     const title = popupOverlay.querySelector("#ytss-popup-title");
     const chart = popupOverlay.querySelector("#ytss-popup-chart");
@@ -206,9 +223,7 @@
   function hidePopup() {
     popupOverlay.classList.remove("ytss-popup-visible");
     stopTipRotation();
-    // Restore video mute state on all videos
-    const videos = document.querySelectorAll("video");
-    videos.forEach(v => v.muted = wasMutedBeforePopup);
+    stopMuting();
     }
 
   // ---------- Analysis Panel ----------
