@@ -8,8 +8,9 @@ if _backend_dir not in sys.path:
 from utils import LlmRequest, call_llm
 from channel_scraper import check_channel_page
 from semantic_analysis import analyze_video as semantic_analysis
-from voice_to_text import voice_to_text
+#from voice_to_text import voice_to_text
 from extract_audio import extract_audio
+from nonexistent import voice_to_text
 from openai import OpenAI
 import os
 from pathlib import Path
@@ -32,7 +33,7 @@ def _process_single_video(path: str, url: str, storage_dict: dict) -> tuple[str,
         return check_channel_page(url)
 
     def semantic_info():
-        return semantic_analysis(path)
+        return semantic_analysis(path, os.environ["GOOGLE_API_KEY"])
 
     # Run 3 subtasks in parallel
     with ThreadPoolExecutor(max_workers=3) as executor:
@@ -117,6 +118,7 @@ if __name__ == "__main__":
              ('videos/AVeuGFSSAxQ.mp4', 'https://www.youtube.com/shorts/35KWWdck7zM')],
             storage_dict,
         )
+        print(result)
 
     t = threading.Thread(target=run)
     t.start()

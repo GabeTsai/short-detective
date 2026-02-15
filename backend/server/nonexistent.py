@@ -5,4 +5,3 @@ def semantic_analysis(filepath: str) -> str:
 # MP3 filepath
 def voice_to_text(path: str) -> str:
     return "Empty"
-
