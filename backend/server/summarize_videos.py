@@ -94,7 +94,7 @@ def _process_single_video(path: str, url: str, storage_dict: dict) -> tuple[str,
     [Explanation for presentation risk (how is the video presented? Is there music that sets a specific mood, clickbait behavior, fear selling, etc.)]
 
     Learn more: 
-    [Here, list all the links perplexity returned. After each link, add a short explanation of why it's relevant to the video.]
+    [Here, list all the links perplexity returned. After each link, add a short explanation of why it's relevant to the video. Use a numbered list for each link]
     """
 
     client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
