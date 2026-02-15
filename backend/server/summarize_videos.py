@@ -67,17 +67,17 @@ def _process_single_video(path: str, url: str, storage_dict: dict) -> tuple[str,
     system_prompt = """
     You are an assistant that provides facts and findings.  Give a view on the trustworthiness of the video,
     including any potential misrepresentations. Your inputs may be truncated. Do not talk down to the user; 
-    your job is to find facts. 
+    your job is to find facts. Do not add any extra formatting like ** or anything like that. Just use plain text. 
     
     """
 
     message = f"""
-    Given this information, tell users if this video is AI generated, contains misinformation, or tries to promote some kind of agenda. 
+    Given this information, tell users if this video is AI generated or contains misinformation.
     Mismatch level represents how well the content in the video matches the facts we found (think of it as video risk). 
     When giving explanation, donn't use anything like "Presentation risk explanation:". Simply jump straight into the explanation.
     Consider internal analyses as statements that are highly likely to be true. Refer to semantic analysis as Google Gemini's analysis, 
     and channel page info as the information found on the channel page. Do not refer to ambigious internal 
-    terms, and only use the above terms when referring to the internal analyses. When making claims related to perplexity, add the sources (links) as well. 
+    terms, and only use the above terms when referring to the internal analyses. 
     Perplexity Results: {transcription[:10000]}
     Channel page info: {channel_page_info[:10000]}
     Semantic analysis: {semantic_analysis_info[:10000]}
@@ -92,6 +92,9 @@ def _process_single_video(path: str, url: str, storage_dict: dict) -> tuple[str,
     [Explanation for how you got the video risk rating (is it AI generated, clips stitched together misleadingly, etc.). In this and following sections, give the actual explanation, not this exact text]
     [Explanation for context risk (what context do we need to know to understand the video? Are there any scientific studies taken out of context, misrepresentation of facts, etc.)]
     [Explanation for presentation risk (how is the video presented? Is there music that sets a specific mood, clickbait behavior, fear selling, etc.)]
+
+    Learn more: 
+    [Here, list all the links perplexity returned. After each link, add a short explanation of why it's relevant to the video.]
     """
 
     client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
