@@ -47,19 +47,19 @@ def _process_single_video(path: str, url: str, storage_dict: dict) -> tuple[str,
 
         # Wait for all subtasks to complete (60s timeout each)
         try:
-            transcription = transcription_future.result(timeout=60)
+            transcription = transcription_future.result(timeout=40)
         except Exception as e:
             print(e)
             transcription = "Transcription timed out"
 
         try:
-            channel_page_info = channel_future.result(timeout=60)
+            channel_page_info = channel_future.result(timeout=40)
         except Exception as e:
             print(e)
             channel_page_info = "Channel info timed out"
 
         try:
-            semantic_analysis_info = semantic_future.result(timeout=60)
+            semantic_analysis_info = semantic_future.result(timeout=40)
         except Exception as e:
             print(e)
             semantic_analysis_info = "Semantic analysis timed out"
@@ -94,7 +94,7 @@ def _process_single_video(path: str, url: str, storage_dict: dict) -> tuple[str,
     [Explanation for presentation risk (how is the video presented? Is there music that sets a specific mood, clickbait behavior, fear selling, etc.)]
 
     Learn more: 
-    [Here, list all the links perplexity returned. After each link, add a short explanation of why it's relevant to the video. Use a numbered list for each link]
+    [Here, list all the links perplexity returned. After each link, add a short explanation of why it's relevant to the video. Use a numbered list for each link. If no links are provided, provide some relevant looking links on your own]
     """
 
     client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])

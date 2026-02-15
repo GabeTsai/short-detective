@@ -82,8 +82,10 @@ def get_info(url: str):
     print(video_id)
     print(cache.keys())
     if video_id in cache:
+        print("CACHE HIT")
         return {"message": cache[video_id]}
     else:
+        print("CACHE MISS")
         return {"message": f"Loading..."}
 
     return {"message": "Loading...", "is_streaming": True}
