@@ -123,110 +123,168 @@ GEMINI_MODEL_VIDEO: str = "gemini-3-flash-preview"
 """Gemini model for video analysis with multimodal support."""
 
 SEMANTIC_ANALYSIS_PROMPT: str = """
+# Short-Form Video Integrity Analysis Prompt (Evidence-Based & Bias-Constrained)
+
 Analyze the provided short-form vertical video using a forensic, evidence-based, multimodal approach.
 
 This content format is optimized for rapid engagement and emotional impact.  
-Your task is to detect misinformation, manipulation, agenda-pushing, or harmful framing — grounded strictly in observable audiovisual evidence.
+Your task is to assess the integrity of the content and identify potential misinformation, manipulation techniques, or agenda-driven framing — grounded strictly in observable audiovisual evidence.
 
-Do not assume malicious intent unless clearly supported.
+Do not assume malicious intent unless explicitly supported by evidence.  
+Do not infer ideology unless clearly expressed.  
+If uncertainty exists, state it clearly.
 
-Limit your response to 12-18 sentences (~250-300 words). Prioritize integrity risks.
+When identifying risks, use probabilistic language such as:  
+> “Based on observable evidence, X increases the probability of misunderstanding because…”
+
+Avoid moral judgments. Focus on verification pathways and measurable risk indicators.
+
+Limit your response to 12-18 sentences (~250-300 words). Prioritize integrity risks over stylistic critique.
 
 ---
 
 ## 1. Overview (2-3 sentences)
 
-- What is the core claim or message?
-- What type of short is this (educational, promotional, political commentary, lifestyle advice, etc.)?
+- What is the central claim or message?
+- What type of short is this (educational, promotional, commentary, lifestyle, etc.)?
 - Who appears to be the intended audience?
+
+Base this only on observable content.
 
 ---
 
-## 2. Hook and Framing Analysis (Critical for Short-Form)
+## 2. Hook and Framing Analysis (Critical in Short-Form Media)
 
-- What is presented in the first 3-5 seconds?
-- Does the opening rely on shock, urgency, outrage, or fear?
-- Are bold text overlays or captions used to frame interpretation?
-- Is context withheld to create suspense or emotional tension?
+- What occurs in the first 3-5 seconds?
+- Does the opening rely on urgency, fear, outrage, or surprise?
+- Are bold captions or overlays used to guide interpretation?
+- Is key context delayed or withheld to heighten emotional engagement?
 
-Describe specific on-screen text, tone, or editing cues.
+Describe specific audiovisual cues (text overlays, pacing, music, tone, cuts).  
+Avoid assuming intent — describe effects, not motives.
 
 ---
 
 ## 3. Content Integrity Assessment
 
 For each concern:
-- Quote/paraphrase the claim OR describe the relevant visual/audio cue.
-- Explain why it may be misleading, exaggerated, decontextualized, or unsupported.
-- If insufficient evidence exists, state: "Insufficient evidence to assess."
 
-### A. Factual Claims
+- Quote or paraphrase the claim OR describe the relevant audiovisual cue.
+- Evaluate whether the issue is:
+  - Verifiably false  
+  - Potentially misleading due to missing context  
+  - Opinion presented as fact  
+  - Anecdotal evidence generalized broadly  
+  - Insufficient evidence to assess  
 
-- Are statistics or scientific/medical claims presented?
-- Are claims compressed in a way that removes nuance?
-- Are charts, headlines, or screenshots shown without sourcing?
-- Are anecdotes presented as universal proof?
+If evidence is insufficient, explicitly state:  
+**“Insufficient evidence to assess.”**
 
-Distinguish clearly between:
+Where appropriate, use calibrated language such as:  
+> “Based on observable evidence, this framing increases the probability of misunderstanding because…”
+
+---
+
+### A. Factual and Evidentiary Claims
+
+- Are statistics, scientific, medical, or policy claims presented?
+- Are sources cited visually or verbally?
+- Are screenshots or charts shown without attribution?
+- Is nuance compressed due to short-format constraints?
+
+If relevant, note:  
+> “Short-form compression may remove nuance but does not alone indicate misinformation.”
+
+Clearly distinguish between:
 - False claims  
 - Misleading framing  
 - Opinion  
 
 ---
 
-### B. Emotional Manipulation Techniques
+### B. Emotional Persuasion Techniques (Separate from Factual Accuracy)
 
-Assess whether the short uses:
+Assess whether the video uses:
 
-- Dramatic music or sound effects  
-- Rapid jump cuts or zooms to create urgency  
-- Red warning text, capitalized words, or alarmist visuals  
-- Simplified "you've been lied to" narratives  
-- Us-vs-them framing  
+- Dramatic or suspenseful music  
+- Rapid cuts or zooms  
+- Capitalized alarmist text  
+- Simplified “hidden truth” narratives  
+- Us-versus-them framing  
 
-Provide specific multimodal examples.
+Distinguish clearly between:
+- Standard persuasive editing (common in short-form media)  
+- Emotional substitution for evidence  
+
+Use probabilistic phrasing when appropriate:
+> “The use of [technique] increases the likelihood that viewers rely on emotion rather than evidence.”
+
+Avoid labeling engagement tactics as inherently deceptive.
 
 ---
 
 ### C. Commercial or Ideological Incentives
 
-- Is there a product, affiliate link, or brand promotion?
-- Is political persuasion implied?
-- Is there a call to action (e.g., “share before this gets deleted,” “wake up,” “buy now”)?
+- Is a product, service, or affiliate link promoted?
+- Is there a call to action (e.g., “share before deleted,” “wake up,” “buy now”)?
+- Is political persuasion explicit or implied?
+
+Describe incentive structures factually.  
+Do not attribute intent unless explicitly supported.
 
 ---
 
-## 4. Key Red Flags
+## 4. Key Integrity Risks
 
-List the top 1-3 integrity concerns.  
-If none, state: "No significant red flags detected."
+List the top 1-3 observable concerns.
 
----
+If none are evident:  
+**“No significant integrity risks detected based on available evidence.”**
 
-## 5. Risk Ratings
-
-- Misinformation Risk: [Low/Medium/High] - Brief justification  
-- Manipulation Risk: [Low/Medium/High] - Brief justification  
-- Agenda-Pushing Risk: [Low/Medium/High] - Brief justification  
-- Potential for Harm: [Low/Medium/High] - Brief justification  
-
-Overall Confidence in Assessment: [Low/Medium/High]
+Frame concerns in probabilistic terms:
+> “Based on observable evidence, this element increases the probability of misinterpretation because…”
 
 ---
 
-## 6. Final Verdict
-- Trustworthy / Questionable / Problematic  
-- Who might be most vulnerable?  
-- Recommended next step (fact-check, seek full-length sources, verify claims, etc.)
+## 5. Risk Ratings (Evidence-Based & Calibrated)
+
+- **Misinformation Risk:** Low / Medium / High  
+  Justify based on verifiability and evidence quality.
+
+- **Manipulation Risk:** Low / Medium / High  
+  Justify based on degree of emotional substitution for evidence.
+
+- **Agenda-Pushing Risk:** Low / Medium / High  
+  Justify based on explicit calls to action or ideological framing.
+
+- **Potential for Harm:** Low / Medium / High  
+  If applicable, reference historical patterns (e.g., similar narratives have previously contributed to measurable public harm, misinformation spread, financial scams, etc.).
+
+If no precedent is clear, state:  
+**“No established evidence of downstream harm based on observable content.”**
+
+- **Overall Confidence in Assessment:** Low / Medium / High  
+
 ---
 
-### Evaluation Requirements
-- Be concise but analytically rigorous.
-- Ground all findings in observable multimodal evidence (visuals, music, pacing, captions, tone).
-- Do not over-interpret neutral stylistic elements.
-- Distinguish clearly between persuasive editing and factual inaccuracy.
-- If the content appears benign, state that clearly.
-- Do not speculate beyond what is shown.
+## 6. Final Assessment
+
+- Trustworthy / Questionable / Requires Verification / Problematic  
+- Who might be most susceptible to misinterpretation?
+- Recommended next step (verify statistics, consult primary sources, compare against expert consensus, etc.)
+
+Avoid ideological framing.  
+Focus on uncertainty acknowledgment, evidence quality, and probability of misunderstanding.
+
+---
+
+### Important Constraints
+
+- Do not speculate beyond observable audiovisual evidence.
+- Do not assume hidden motives.
+- Separate persuasion from falsity.
+- Clearly distinguish uncertainty from confirmed issues.
+- Use calibrated, probabilistic language throughout.
 """
 
 SEMANTIC_ANALYSIS_QUICK_PROMPT: str = """
@@ -246,4 +304,89 @@ Analyze this video and provide a FOCUSED assessment on potential concerns:
 
 Be concise but specific. If the content is benign, state that clearly.
 """
+
+# -----------------------------------------------------------------------------
+# Web Search / Perplexity Sonar API
+# See: https://docs.perplexity.ai/docs/sonar/pro-search/quickstart
+# -----------------------------------------------------------------------------
+
+PERPLEXITY_MODEL: str = "sonar-pro"
+"""Perplexity model for web search and analysis.
+Options: 
+- sonar: Basic search
+- sonar-pro: Enhanced search with better citations (recommended)
+
+Sonar Pro features:
+- Multi-step reasoning with automated tools (when streaming)
+- Dynamic tool execution (web_search, fetch_url_content)
+- Adaptive research strategies
+"""
+
+PERPLEXITY_API_BASE: str = "https://api.perplexity.ai"
+"""Base URL for Perplexity API (OpenAI-compatible)."""
+
+PERPLEXITY_SEARCH_TYPE: str = "auto"
+"""Search type for Sonar Pro: "auto" (recommended), "pro", or "fast"
+- auto: Automatically routes complex queries to Pro Search, simple to Fast Search
+- pro: Forces Pro Search (multi-step reasoning, higher cost)
+- fast: Forces Fast Search (single search, lower cost)
+
+Note: Pro Search requires streaming to be enabled.
+"""
+
+WEB_SEARCH_SYSTEM_PROMPT: str = """You are a fact-checking assistant analyzing potentially misleading or misinformation content from social media videos.
+
+Your task is to search the web for reliable information about the claims made in the transcript and assess their credibility.
+
+For each relevant web source you find:
+1. Provide the URL
+2. Write 1-3 sentences explaining whether this source INCREASES or DECREASES the legitimacy of the transcript's claims
+3. Be specific about which claims are supported or contradicted
+
+Focus on finding authoritative sources like:
+- Peer-reviewed scientific studies
+- Medical institutions (NIH, WHO, Mayo Clinic, etc.)
+- Fact-checking organizations (Snopes, FactCheck.org, etc.)
+- Reputable news organizations
+- Academic institutions
+
+Return 5-7 of the most relevant sources (or fewer if you can't find enough reliable information)."""
+
+WEB_SEARCH_MAX_RESULTS: int = 7
+"""Maximum number of web search results to return."""
+
+
+def get_web_search_user_prompt(transcript: str, max_results: int) -> str:
+    """
+    Generate the user prompt for web search fact-checking.
+    
+    Args:
+        transcript: The video transcript to analyze
+        max_results: Maximum number of sources to return
+        
+    Returns:
+        Formatted user prompt string
+    """
+    return f"""Analyze this video transcript and find {max_results} reliable web sources that help assess its credibility:
+
+TRANSCRIPT:
+{transcript}
+
+For each source, provide:
+1. The URL
+2. A brief assessment (1-3 sentences) of whether it INCREASES or DECREASES the legitimacy of the transcript
+3. Indicate clearly if it supports or contradicts the claims
+
+Return your response in the following JSON format:
+{{
+    "results": [
+        {{
+            "url": "https://example.com/article",
+            "assessment": "This peer-reviewed study contradicts the claim that oats are unhealthy. Research shows oats provide heart health benefits and the phytic acid content is reduced through cooking.",
+            "increases_legitimacy": false
+        }}
+    ],
+    "summary": "Overall brief assessment of transcript legitimacy based on sources found",
+    "total_found": 5
+}}"""
 
