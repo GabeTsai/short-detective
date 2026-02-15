@@ -44,6 +44,11 @@ VOXTRAL_SERVER_TIMEOUT_MINUTES: int = 15
 VOXTRAL_SCALEDOWN_WINDOW_MINUTES: int = 10
 """How long to keep the server up with no requests before scaling down."""
 
+VOXTRAL_MAX_CONCURRENT_REQUESTS: int = 100
+"""Maximum concurrent requests allowed per container. 
+This enables vLLM batching - all requests hit the same GPU instead of spawning separate containers.
+Set this high enough to handle your peak concurrent load."""
+
 VOXTRAL_STARTUP_TIMEOUT_MINUTES: int = 15
 """Max time to wait for vLLM server to become ready."""
 
@@ -89,76 +94,114 @@ def get_transcription_url() -> Optional[str]:
 # Semantic Video Analysis / Gemini API
 # -----------------------------------------------------------------------------
 
-GEMINI_MODEL_VIDEO: str = "gemini-2.0-flash-exp"
+GEMINI_MODEL_VIDEO: str = "gemini-3-flash-preview"
 """Gemini model for video analysis with multimodal support."""
 
 SEMANTIC_ANALYSIS_PROMPT: str = """
-Provide a detailed semantic analysis of this video, with a STRONG focus on detecting concerning content. Structure your response with the following sections:
+Analyze the provided short-form vertical video using a forensic, evidence-based, multimodal approach.
 
-## OVERVIEW
-- Brief summary of what the video is about (2-3 sentences)
-- Video type/genre (e.g., tutorial, vlog, advertisement, educational, entertainment, political commentary)
-- Primary topic and target audience
+This content format is optimized for rapid engagement and emotional impact.  
+Your task is to detect misinformation, manipulation, agenda-pushing, or harmful framing — grounded strictly in observable audiovisual evidence.
 
-## CONTENT INTEGRITY ASSESSMENT ⚠️
-**This is the most important section. Carefully evaluate:**
+Do not assume malicious intent unless clearly supported.
 
-### Misinformation & Factual Accuracy
-- Are verifiable facts presented? Are they accurate or misleading?
-- Any false claims, debunked information, or out-of-context statistics?
-- Cherry-picking of data or selective presentation of evidence?
-- Medical, scientific, or health misinformation?
+Limit your response to 12-18 sentences (~250-300 words). Prioritize integrity risks.
 
-### Propaganda & Manipulation Techniques
-- Emotional manipulation (fear-mongering, outrage, sentimentalism)
-- Loaded language or biased framing
-- Us vs. them mentality or demonization of groups
-- Oversimplification of complex issues
-- Appeal to authority without credible sources
+---
 
-### Agenda-Pushing & Bias
-- Clear political, ideological, or commercial agenda?
-- One-sided presentation without acknowledging counterarguments?
-- Attempting to radicalize or polarize viewers?
-- Hidden sponsors or undisclosed conflicts of interest?
+## 1. Overview (2-3 sentences)
 
-### Conspiracy Theories & Extremism
-- Promotion of conspiracy theories (identify which ones)
-- Anti-science or anti-establishment rhetoric
-- Calls to action that could lead to harm
-- Dog whistles or coded language for extremist views
+- What is the core claim or message?
+- What type of short is this (educational, promotional, political commentary, lifestyle advice, etc.)?
+- Who appears to be the intended audience?
 
-### Source Credibility
-- Are sources cited? Are they credible and verifiable?
-- Expert credentials (if any) - are they legitimate?
-- Quality of evidence presented (anecdotal vs. scientific)
+---
 
-## VISUAL & NARRATIVE ANALYSIS
-- Key visual elements, text overlays, graphics
-- Tone: calm/measured vs. sensationalist/alarmist
-- Editing style: professional vs. amateur, fast-paced vs. deliberate
-- Music/sound effects used for emotional manipulation
+## 2. Hook and Framing Analysis (Critical for Short-Form)
 
-## KEY MOMENTS & RED FLAGS
-- Specific timestamps where concerning content appears
-- Most problematic claims or statements
-- Any calls to action or directives to viewers
+- What is presented in the first 3-5 seconds?
+- Does the opening rely on shock, urgency, outrage, or fear?
+- Are bold text overlays or captions used to frame interpretation?
+- Is context withheld to create suspense or emotional tension?
 
-## OVERALL RISK ASSESSMENT
-Rate the video on these dimensions (Low/Medium/High):
-- **Misinformation Risk**: [Rating + brief explanation]
-- **Propaganda/Manipulation**: [Rating + brief explanation]
-- **Agenda-Pushing**: [Rating + brief explanation]
-- **Conspiracy Theory Content**: [Rating + brief explanation]
-- **Potential for Harm**: [Rating + brief explanation]
+Describe specific on-screen text, tone, or editing cues.
 
-## SUMMARY
-- Overall verdict: Is this content trustworthy, questionable, or problematic?
-- Who might be vulnerable to this content?
-- Recommended actions (verify claims, check sources, seek alternative perspectives, etc.)
+---
 
-Be thorough, specific, and critical, but limit your response to 15-20 sentences (around 300 words). 
-If content appears benign, say so clearly. If it raises red flags, identify them explicitly with evidence.
+## 3. Content Integrity Assessment
+
+For each concern:
+- Quote/paraphrase the claim OR describe the relevant visual/audio cue.
+- Explain why it may be misleading, exaggerated, decontextualized, or unsupported.
+- If insufficient evidence exists, state: "Insufficient evidence to assess."
+
+### A. Factual Claims
+
+- Are statistics or scientific/medical claims presented?
+- Are claims compressed in a way that removes nuance?
+- Are charts, headlines, or screenshots shown without sourcing?
+- Are anecdotes presented as universal proof?
+
+Distinguish clearly between:
+- False claims  
+- Misleading framing  
+- Opinion  
+
+---
+
+### B. Emotional Manipulation Techniques
+
+Assess whether the short uses:
+
+- Dramatic music or sound effects  
+- Rapid jump cuts or zooms to create urgency  
+- Red warning text, capitalized words, or alarmist visuals  
+- Simplified "you've been lied to" narratives  
+- Us-vs-them framing  
+
+Provide specific multimodal examples.
+
+---
+
+### C. Commercial or Ideological Incentives
+
+- Is there a product, affiliate link, or brand promotion?
+- Is political persuasion implied?
+- Is there a call to action (e.g., “share before this gets deleted,” “wake up,” “buy now”)?
+
+---
+
+## 4. Key Red Flags
+
+List the top 1-3 integrity concerns.  
+If none, state: "No significant red flags detected."
+
+---
+
+## 5. Risk Ratings
+
+- Misinformation Risk: [Low/Medium/High] - Brief justification  
+- Manipulation Risk: [Low/Medium/High] - Brief justification  
+- Agenda-Pushing Risk: [Low/Medium/High] - Brief justification  
+- Potential for Harm: [Low/Medium/High] - Brief justification  
+
+Overall Confidence in Assessment: [Low/Medium/High]
+
+---
+
+## 6. Final Verdict
+- Trustworthy / Questionable / Problematic  
+- Who might be most vulnerable?  
+- Recommended next step (fact-check, seek full-length sources, verify claims, etc.)
+---
+
+### Evaluation Requirements
+- Be concise but analytically rigorous.
+- Ground all findings in observable multimodal evidence (visuals, music, pacing, captions, tone).
+- Do not over-interpret neutral stylistic elements.
+- Distinguish clearly between persuasive editing and factual inaccuracy.
+- If the content appears benign, state that clearly.
+- Do not speculate beyond what is shown.
 """
 
 SEMANTIC_ANALYSIS_QUICK_PROMPT: str = """
