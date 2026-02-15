@@ -16,7 +16,7 @@
     ],
     "web_accessible_resources": [
       {
-        "resources": ["LibreBaskerville-Bold.ttf"],
+        "resources": ["LibreBaskerville-Bold.ttf", "LibreBaskerville-Regular.ttf"],
         "matches": ["https://www.youtube.com/*"]
       }
     ]

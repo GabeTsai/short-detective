@@ -132,7 +132,7 @@ END COMMENTED OUT: Collector Panel (LEFT)
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.35s ease;
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  font-family: 'Libre Baskerville', Georgia, serif;
 }
 
 #ytss-popup-overlay.ytss-popup-visible {
@@ -142,41 +142,84 @@ END COMMENTED OUT: Collector Panel (LEFT)
 
 #ytss-popup-content {
   text-align: center;
-  max-width: 420px;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
   padding: 48px 36px;
+  padding-bottom: 180px;
+  box-sizing: border-box;
 }
 
 #ytss-popup-title {
-  font-size: 42px;
-  font-weight: 800;
+  font-family: 'Libre Baskerville', Georgia, serif;
+  font-size: 48px;
+  font-weight: 700;
   color: #fff;
   letter-spacing: -0.02em;
-  margin-bottom: 12px;
+  margin-bottom: 24px;
   line-height: 1.15;
 }
 
-#ytss-popup-subtitle {
-  font-size: 16px;
-  color: rgba(255, 255, 255, 0.6);
-  margin-bottom: 32px;
+/* Tip carousel */
+#ytss-popup-tips {
+  width: 500px;
+  height: 28px;
+  overflow: hidden;
+  position: relative;
 }
 
+#ytss-popup-tips .ytss-tip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  font-family: 'Libre Baskerville', Georgia, serif;
+  font-size: 16px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.55);
+  white-space: nowrap;
+  transform: translateX(100%);
+  opacity: 0;
+  transition: transform 0.4s ease, opacity 0.4s ease;
+}
+
+#ytss-popup-tips .ytss-tip.ytss-tip-active {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+#ytss-popup-tips .ytss-tip.ytss-tip-exit {
+  transform: translateX(-100%);
+  opacity: 0;
+}
+
+/* Loader — pinned to bottom */
 #ytss-popup-loader {
+  position: absolute;
+  bottom: 60px;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
   gap: 12px;
 }
 
 #ytss-popup-progress {
-  font-size: 14px;
-  color: rgba(255, 255, 255, 0.5);
+  font-family: 'Libre Baskerville', Georgia, serif;
+  font-size: 13px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.4);
 }
 
 /* Spinner */
 .ytss-spinner {
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   border: 2.5px solid rgba(255, 255, 255, 0.15);
   border-top-color: #fff;
   border-radius: 50%;
@@ -198,38 +241,76 @@ END COMMENTED OUT: Collector Panel (LEFT)
   src: url('chrome-extension://__MSG_@@extension_id__/LibreBaskerville-Bold.ttf') format('truetype');
 }
 
-/* ===== Analysis Panel (RIGHT — full-height, white) ===== */
+@font-face {
+  font-family: 'Libre Baskerville';
+  font-weight: 400;
+  font-style: normal;
+  src: url('chrome-extension://__MSG_@@extension_id__/LibreBaskerville-Regular.ttf') format('truetype');
+}
+
+/* ===== Analysis Panel (RIGHT — full-height, white, sliding drawer) ===== */
 
 #ytss-analysis-root {
   position: fixed;
   top: calc(50% + 12px);
   transform: translateY(-50%);
   right: 0;
-  width: 460px;
   height: 727px;
   z-index: 999999;
-  padding: 0 10px 0 0;
   box-sizing: border-box;
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  font-family: 'Libre Baskerville', Georgia, serif;
+  display: flex;
+  align-items: stretch;
 }
 
+
 #ytss-analysis-panel {
-  width: 100%;
+  width: 460px;
+  min-width: 0;
   height: 100%;
   background: #ffffff;
   color: #1a1a1a;
   border: 1px solid rgba(0, 0, 0, 0.1);
-  border-radius: 14px;
+  border-radius: 8px 0 0 8px;
   overflow: hidden;
   box-shadow: none;
   display: flex;
   flex-direction: column;
+  transition: width 0.3s ease;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+}
+
+/* ===== Drawer Handle (sibling of panel) ===== */
+
+#ytss-drawer-handle {
+  width: 20px;
+  align-self: center;
+  height: 56px;
+  background: #f2f2f2;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-right: none;
+  border-radius: 8px 0 0 8px;
+  cursor: ew-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s ease;
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.4);
+  user-select: none;
+}
+
+#ytss-drawer-handle:hover {
+  background: #e8e8e8;
+  color: rgba(0, 0, 0, 0.7);
 }
 
 #ytss-analysis-header {
-  padding: 18px 16px 14px 20px;
+  padding: 14px 16px 14px 20px;
   font-family: 'Libre Baskerville', Georgia, serif;
-  font-size: 28px;
+  font-size: 36px;
   font-weight: 700;
   color: #1a1a1a;
   background: #f2f2f2;
@@ -276,16 +357,21 @@ END COMMENTED OUT: Collector Panel (LEFT)
 
 #ytss-analysis-body {
   overflow-y: auto;
-  padding: 12px 14px;
+  padding: 8px 20px;
   flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 .ytss-analysis-card {
-  background: #f8f8f8;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  border-radius: 10px;
-  padding: 14px 16px;
-  margin-bottom: 10px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  margin-bottom: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 .ytss-analysis-card:last-child {
@@ -293,20 +379,25 @@ END COMMENTED OUT: Collector Panel (LEFT)
 }
 
 .ytss-analysis-url {
+  font-family: 'Libre Baskerville', Georgia, serif;
   font-size: 11px;
+  font-weight: 400;
   color: rgba(0, 0, 0, 0.4);
-  margin-bottom: 8px;
+  margin-bottom: 12px;
   word-break: break-all;
   line-height: 1.3;
 }
 
 .ytss-analysis-text {
-  font-size: 13px;
+  font-family: 'Libre Baskerville', Georgia, serif;
+  font-size: 14px;
+  font-weight: 400;
   color: #2a2a2a;
-  line-height: 1.6;
+  line-height: 1.7;
   white-space: pre-wrap;
-  max-height: 220px;
+  max-height: none;
   overflow-y: auto;
+  flex: 1;
 }
 
 .ytss-analysis-text::-webkit-scrollbar {
@@ -330,7 +421,9 @@ END COMMENTED OUT: Collector Panel (LEFT)
 .ytss-analysis-empty {
   text-align: center;
   color: rgba(0, 0, 0, 0.35);
-  font-size: 13px;
+  font-family: 'Libre Baskerville', Georgia, serif;
+  font-size: 14px;
+  font-weight: 400;
   padding: 40px 20px;
   display: flex;
   align-items: center;

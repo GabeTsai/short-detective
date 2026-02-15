@@ -49,13 +49,26 @@
     }
 
   // ---------- Popup Overlay ----------
+  const TIPS = [
+    "Tip A",
+    "Tip B",
+    "Tip C",
+    "Tip D",
+    "Tip E",
+    "Tip F",
+    "Tip G",
+    "Tip H"
+  ];
+  let tipInterval = null;
+  let tipIndex = 0;
+
   function createPopupOverlay() {
     const overlay = document.createElement("div");
     overlay.id = "ytss-popup-overlay";
     overlay.innerHTML = `
       <div id="ytss-popup-content">
         <div id="ytss-popup-title"></div>
-        <div id="ytss-popup-subtitle"></div>
+        <div id="ytss-popup-tips"></div>
         <div id="ytss-popup-loader">
           <div class="ytss-spinner"></div>
           <span id="ytss-popup-progress"></span>
@@ -68,20 +81,65 @@
 
   const popupOverlay = createPopupOverlay();
 
+  function startTipRotation() {
+    const tipsContainer = popupOverlay.querySelector("#ytss-popup-tips");
+    tipIndex = 0;
+
+    // Show first tip immediately
+    tipsContainer.innerHTML = "";
+    const firstTip = document.createElement("span");
+    firstTip.className = "ytss-tip ytss-tip-active";
+    firstTip.textContent = TIPS[0];
+    tipsContainer.appendChild(firstTip);
+
+    tipInterval = setInterval(() => {
+      tipIndex = (tipIndex + 1) % TIPS.length;
+      const current = tipsContainer.querySelector(".ytss-tip-active");
+
+      // Create the incoming tip
+      const next = document.createElement("span");
+      next.className = "ytss-tip";
+      next.textContent = TIPS[tipIndex];
+      tipsContainer.appendChild(next);
+
+      // Trigger exit on current, enter on next
+      requestAnimationFrame(() => {
+        if (current) {
+          current.classList.remove("ytss-tip-active");
+          current.classList.add("ytss-tip-exit");
+        }
+        requestAnimationFrame(() => {
+          next.classList.add("ytss-tip-active");
+        });
+      });
+
+      // Clean up exited tip after transition
+      setTimeout(() => {
+        if (current && current.parentNode) current.remove();
+      }, 500);
+    }, 2500);
+  }
+
+  function stopTipRotation() {
+    if (tipInterval) {
+      clearInterval(tipInterval);
+      tipInterval = null;
+    }
+  }
+
   function showPopup(type, data = {}) {
     const title = popupOverlay.querySelector("#ytss-popup-title");
-    const subtitle = popupOverlay.querySelector("#ytss-popup-subtitle");
     const progress = popupOverlay.querySelector("#ytss-popup-progress");
 
     if (type === "welcome") {
-      title.textContent = "Welcome to Brainrot";
-      subtitle.textContent = "Preparing your feed...";
+      title.textContent = "Sauce, Please?";
       progress.textContent = "Collecting URLs...";
+      startTipRotation();
     } else if (type === "summary") {
       const seconds = Math.round((data.viewingTime || 0) / 1000);
-      title.textContent = `${seconds}s`;
-      subtitle.textContent = `You spent ${seconds} seconds on the last 8 reels`;
+      title.textContent = `${seconds}s on the last 8 reels`;
       progress.textContent = "Collecting next 8 URLs...";
+      startTipRotation();
     }
 
     popupOverlay.classList.add("ytss-popup-visible");
@@ -94,6 +152,7 @@
 
   function hidePopup() {
     popupOverlay.classList.remove("ytss-popup-visible");
+    stopTipRotation();
     }
 
   // ---------- Analysis Panel ----------
@@ -101,6 +160,7 @@
     const root = document.createElement("div");
     root.id = "ytss-analysis-root";
     root.innerHTML = `
+      <div id="ytss-drawer-handle" title="Toggle panel">&#8249;</div>
       <div id="ytss-analysis-panel">
         <div id="ytss-analysis-header">
           <span>Sauce, Please?</span>
@@ -113,6 +173,79 @@
     `;
     document.documentElement.appendChild(root);
 
+    // Drawer handle — width-based resize
+    const handle = root.querySelector("#ytss-drawer-handle");
+    const panel = root.querySelector("#ytss-analysis-panel");
+    const MAX_WIDTH = 460;    // fully open
+    const MIN_WIDTH = 120;    // minimum visible width before collapse
+    let currentWidth = MAX_WIDTH;
+    let collapsed = false;
+    let dragging = false;
+    let hasDragged = false;
+    let dragStartX = 0;
+    let dragStartWidth = 0;
+
+    function setWidth(w, animate) {
+      if (animate) {
+        panel.style.transition = "width 0.3s ease";
+      } else {
+        panel.style.transition = "none";
+      }
+      panel.style.width = w + "px";
+      currentWidth = w;
+      collapsed = (w === 0);
+      handle.innerHTML = collapsed ? "&#8249;" : "&#8250;";
+    }
+
+    handle.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      dragging = true;
+      hasDragged = false;
+      dragStartX = e.clientX;
+      dragStartWidth = currentWidth;
+      panel.style.transition = "none";  // disable transition during drag
+      document.body.style.cursor = "ew-resize";
+      document.body.style.userSelect = "none";
+    });
+
+    document.addEventListener("mousemove", (e) => {
+      if (!dragging) return;
+      hasDragged = true;
+      const dx = e.clientX - dragStartX;
+      // Dragging RIGHT (positive dx) = shrinking panel
+      // Dragging LEFT (negative dx) = expanding panel
+      let newWidth = dragStartWidth - dx;
+      newWidth = Math.max(0, Math.min(MAX_WIDTH, newWidth));
+      panel.style.width = newWidth + "px";
+      currentWidth = newWidth;
+      handle.innerHTML = newWidth < MIN_WIDTH ? "&#8249;" : "&#8250;";
+    });
+
+    document.addEventListener("mouseup", (e) => {
+      if (!dragging) return;
+      dragging = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+
+      if (!hasDragged || Math.abs(e.clientX - dragStartX) < 5) {
+        // Click — toggle between full open and collapsed
+        if (collapsed) {
+          setWidth(MAX_WIDTH, true);
+        } else {
+          setWidth(0, true);
+        }
+      } else {
+        // Drag release — if below MIN_WIDTH, collapse fully; otherwise stay
+        if (currentWidth < MIN_WIDTH) {
+          setWidth(0, true);
+        } else {
+          // Stay at current width, just re-enable transitions
+          panel.style.transition = "width 0.3s ease";
+          collapsed = false;
+        }
+      }
+    });
+
     // Toggle button — start/stop collection
     let running = false;
     const toggleBtn = root.querySelector("#ytss-toggle");
@@ -122,9 +255,12 @@
         toggleBtn.innerHTML = "&#9632;";  // ■ stop icon
         toggleBtn.title = "Stop collection";
         toggleBtn.classList.add("ytss-toggle-active");
-        bootstrap();
-        startAnalysisPolling();
-        startUrlCollection();
+        // --- Dummy test: render dummy results immediately ---
+        renderAnalysisResults(DUMMY_RESULTS);
+        // --- Uncomment below when server is connected ---
+        // bootstrap();
+        // startAnalysisPolling();
+        // startUrlCollection();
       } else {
         running = false;
         toggleBtn.innerHTML = "&#9654;";  // ▶ play icon
@@ -139,6 +275,41 @@
 
   const analysisPanel = createAnalysisPanel();
 
+  // ---- Dummy test data (remove when server is connected) ----
+  const DUMMY_RESULTS = {
+    "dummy": `<div style="margin-bottom: 6px; position: relative;">
+  <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 0;">
+    <span style="font-family: 'Libre Baskerville', Georgia, serif; font-size: 15px; font-weight: 700; color: #000;">Mismatch Level</span>
+    <span class="ytss-info-btn" style="display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background: #e0e0e0; color: #666; font-size: 11px; font-weight: 700; cursor: pointer; position: relative; user-select: none;" onclick="(function(el){var tip=el.querySelector('.ytss-info-tooltip');if(tip.style.display==='block'){tip.style.display='none';}else{tip.style.display='block';}})(this)">?<span class="ytss-info-tooltip" style="display: none; position: absolute; top: -8px; left: 26px; width: 220px; background: #555; color: #fff; font-size: 12px; font-weight: 400; padding: 10px 12px; border-radius: 8px; line-height: 1.5; z-index: 10; font-family: 'Libre Baskerville', Georgia, serif; box-shadow: 0 2px 8px rgba(0,0,0,0.18);">We judged the mismatch level with xyz procedures.</span></span>
+  </div>
+  <div style="font-family: 'Libre Baskerville', Georgia, serif; font-size: 26px; font-weight: 700; color: #e6b800; margin-top: 0;">Moderate</div>
+</div>
+
+<div style="display: flex; align-items: center; gap: 6px; margin: 8px 0 4px 0;">
+  <span style="color: #1a1a1a; font-size: 17px; font-family: 'Libre Baskerville', Georgia, serif; font-weight: 700;">Engagement Patterns</span>
+  <span class="ytss-info-btn" style="display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background: #e0e0e0; color: #666; font-size: 11px; font-weight: 700; cursor: pointer; position: relative; user-select: none;" onclick="(function(el){var tip=el.querySelector('.ytss-info-tooltip');if(tip.style.display==='block'){tip.style.display='none';}else{tip.style.display='block';}})(this)">?<span class="ytss-info-tooltip" style="display: none; position: absolute; top: -8px; left: 26px; width: 220px; background: #555; color: #fff; font-size: 12px; font-weight: 400; padding: 10px 12px; border-radius: 8px; line-height: 1.5; z-index: 10; font-family: 'Libre Baskerville', Georgia, serif; box-shadow: 0 2px 8px rgba(0,0,0,0.18);">Analysis of viewer engagement tactics and patterns used in this short.</span></span>
+</div>
+The video employs several proven engagement tactics commonly seen in high-performing Shorts content. The hook appears within the first two seconds with bold text overlay reading "You NEED to try this." There is no traditional introduction or greeting, which aligns with current algorithmic preferences for immediate value delivery. The pacing accelerates toward the final reveal, creating a dopamine loop that encourages replays and shares.
+
+<div style="display: flex; align-items: center; gap: 6px; margin: 8px 0 4px 0;">
+  <span style="color: #1a1a1a; font-size: 17px; font-family: 'Libre Baskerville', Georgia, serif; font-weight: 700;">Content Quality</span>
+  <span class="ytss-info-btn" style="display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background: #e0e0e0; color: #666; font-size: 11px; font-weight: 700; cursor: pointer; position: relative; user-select: none;" onclick="(function(el){var tip=el.querySelector('.ytss-info-tooltip');if(tip.style.display==='block'){tip.style.display='none';}else{tip.style.display='block';}})(this)">?<span class="ytss-info-tooltip" style="display: none; position: absolute; top: -8px; left: 26px; width: 220px; background: #555; color: #fff; font-size: 12px; font-weight: 400; padding: 10px 12px; border-radius: 8px; line-height: 1.5; z-index: 10; font-family: 'Libre Baskerville', Georgia, serif; box-shadow: 0 2px 8px rgba(0,0,0,0.18);">Assessment of production value, lighting, audio, and visual elements.</span></span>
+</div>
+Production quality is above average for the Shorts format. Lighting appears to be a combination of natural window light supplemented with a ring light, creating even illumination without harsh shadows. The audio mix balances the background music with ambient cooking sounds effectively, though there is no voiceover narration. Text overlays serve as the primary instructional medium, appearing in a clean sans-serif font with adequate contrast against the background.
+
+<div style="display: flex; align-items: center; gap: 6px; margin: 8px 0 4px 0;">
+  <span style="color: #1a1a1a; font-size: 17px; font-family: 'Libre Baskerville', Georgia, serif; font-weight: 700;">Audience & Reach</span>
+  <span class="ytss-info-btn" style="display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background: #e0e0e0; color: #666; font-size: 11px; font-weight: 700; cursor: pointer; position: relative; user-select: none;" onclick="(function(el){var tip=el.querySelector('.ytss-info-tooltip');if(tip.style.display==='block'){tip.style.display='none';}else{tip.style.display='block';}})(this)">?<span class="ytss-info-tooltip" style="display: none; position: absolute; top: -8px; left: 26px; width: 220px; background: #555; color: #fff; font-size: 12px; font-weight: 400; padding: 10px 12px; border-radius: 8px; line-height: 1.5; z-index: 10; font-family: 'Libre Baskerville', Georgia, serif; box-shadow: 0 2px 8px rgba(0,0,0,0.18);">Target demographics, comment engagement, and content distribution strategy.</span></span>
+</div>
+Based on the content style and hashtags used, this Short targets a demographic of eighteen to thirty-four year olds interested in cooking, food trends, and lifestyle content. The comment section shows high engagement with numerous users tagging friends and requesting the full recipe. The creator has pinned a comment linking to their longer-form YouTube video with detailed instructions, effectively using the Short as a funnel for deeper content consumption.
+
+<div style="display: flex; align-items: center; gap: 6px; margin: 8px 0 4px 0;">
+  <span style="color: #1a1a1a; font-size: 17px; font-family: 'Libre Baskerville', Georgia, serif; font-weight: 700;">Recommendations</span>
+  <span class="ytss-info-btn" style="display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background: #e0e0e0; color: #666; font-size: 11px; font-weight: 700; cursor: pointer; position: relative; user-select: none;" onclick="(function(el){var tip=el.querySelector('.ytss-info-tooltip');if(tip.style.display==='block'){tip.style.display='none';}else{tip.style.display='block';}})(this)">?<span class="ytss-info-tooltip" style="display: none; position: absolute; top: -8px; left: 26px; width: 220px; background: #555; color: #fff; font-size: 12px; font-weight: 400; padding: 10px 12px; border-radius: 8px; line-height: 1.5; z-index: 10; font-family: 'Libre Baskerville', Georgia, serif; box-shadow: 0 2px 8px rgba(0,0,0,0.18);">Actionable takeaways and suggestions for content creators.</span></span>
+</div>
+This content represents a well-executed example of trend-based Shorts creation. The creator successfully balances entertainment value with instructional content, which tends to perform well across multiple viewer intent categories. For similar creators looking to replicate this format, the key takeaways are to prioritize immediate hooks, maintain rapid pacing throughout, and ensure the final result is visually striking enough to prompt saves and shares among viewers scrolling through their feeds.`
+  };
+
   function renderAnalysisResults(results) {
     const body = analysisPanel.querySelector("#ytss-analysis-body");
     if (!body) return;
@@ -152,16 +323,9 @@
 
     let html = "";
     for (const [url, analysis] of entries) {
-      // Extract video ID for display
-      const videoId = url.split("/shorts/").pop()?.split("?")[0] || url;
-      const escapedAnalysis = analysis
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;");
       html += `
         <div class="ytss-analysis-card">
-          <div class="ytss-analysis-url">${videoId}</div>
-          <div class="ytss-analysis-text">${escapedAnalysis}</div>
+          <div class="ytss-analysis-text">${analysis}</div>
         </div>
       `;
     }
