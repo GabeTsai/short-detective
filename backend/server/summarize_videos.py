@@ -14,7 +14,7 @@ from openai import OpenAI
 import os
 from pathlib import Path
 from dotenv import load_dotenv
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, TimeoutError, as_completed
 
 # Load .env from root folder
 root_dir = Path(__file__).resolve().parent.parent.parent
@@ -44,22 +44,46 @@ def _process_single_video(path: str, url: str, storage_dict: dict) -> tuple[str,
         channel_future = executor.submit(channel_info)
         semantic_future = executor.submit(semantic_info)
 
-        # Wait for all subtasks to complete
-        transcription = transcription_future.result()
-        channel_page_info = channel_future.result()
-        semantic_analysis_info = semantic_future.result()
+        # Wait for all subtasks to complete (60s timeout each)
+        try:
+            transcription = transcription_future.result(timeout=60)
+        except TimeoutError:
+            transcription = "Transcription timed out"
+
+        try:
+            channel_page_info = channel_future.result(timeout=60)
+        except TimeoutError:
+            channel_page_info = "Channel info timed out"
+
+        try:
+            semantic_analysis_info = semantic_future.result(timeout=60)
+        except TimeoutError:
+            semantic_analysis_info = "Semantic analysis timed out"
 
     system_prompt = """
     Here is some research on the youtube video and channel. Give a view on the trustworthiness of the video,
-    including any potential misrepresentations. Your inputs may be truncated.
+    including any potential misrepresentations. Your inputs may be truncated. When writing your response, 
+    do not reference any internal analyses, and treat them as statements that are highly likely to be true. 
+    When speaking, do not sound superior to the user; simply present the facts. 
     """
 
     message = f"""
-    Given this information, tell users if there is anything problematic about the video.
+    Given this information, tell users if this video is AI generated, contains misinformation, or tries to promote some kind of agenda. 
+    Mismatch level represents how well the content in the video matches the facts we found (think of it as video risk). 
     Transcription: {transcription[:10000]}
     Channel page info: {channel_page_info[:10000]}
     Semantic analysis: {semantic_analysis_info[:10000]}
-    Your message should start with "This video appears"...
+    Your response should be formatted like this: 
+
+    Mismatch level: [Low/Medium/High/Very High]
+    Video Risk: [Low/Medium/High/Very High]
+    Context Risk: [Low/Medium/High/Very High]
+    Presentation Risk: [Low/Medium/High/Very High]
+
+
+    [Explanation for how you got the video risk rating (is it AI generated, clips stitched together misleadingly, etc.)]
+    [Explanation for context risk (what context do we need to know to understand the video? Are there any scientific studies taken out of context, misrepresentation of facts, etc.)]
+    [Explanation for presentation risk (how is the video presented? Is there music that sets a specific mood, clickbait behavior, fear selling, etc.)]
     """
 
     client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
@@ -117,8 +141,7 @@ if __name__ == "__main__":
 
     def run():
         result = summarize_videos(
-            [('videos/35KWWdck7zM.mp4', 'https://www.youtube.com/shorts/AVeuGFSSAxQ'),
-             ('videos/AVeuGFSSAxQ.mp4', 'https://www.youtube.com/shorts/35KWWdck7zM')],
+            [('videos/EaDxKdpvMhc.mp4', 'https://www.youtube.com/shorts/EaDxKdpvMhc'),],
             storage_dict,
         )
         print(result)

@@ -78,7 +78,7 @@ def get_info(url: str):
         with open("cache.json", "r") as f:
             cache = json.load(f)
     except FileNotFoundError:
-        return {"message": "Cache not found"}
+        return {"message": "Loading..."}
     print(video_id)
     print(cache.keys())
     if video_id in cache:
@@ -86,7 +86,7 @@ def get_info(url: str):
     else:
         return {"message": f"Video {video_id} not in cache"}
 
-    return {"message": "Video not in cache", "is_streaming": True}
+    return {"message": "Loading...", "is_streaming": True}
 
 
 def hi_stream():
