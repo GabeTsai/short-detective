@@ -49,13 +49,30 @@ VOXTRAL_MAX_CONCURRENT_REQUESTS: int = 100
 This enables vLLM batching - all requests hit the same GPU instead of spawning separate containers.
 Set this high enough to handle your peak concurrent load."""
 
-VOXTRAL_KEEP_WARM: int = 1
-"""Number of containers to keep warm (always running).
-- 0: Scale to zero when idle (cheapest, but has cold starts)
-- 1: Always keep 1 container warm (recommended for production)
+VOXTRAL_MIN_CONTAINERS: int = 1
+"""Minimum number of containers to keep running at all times.
+Prevents cold starts (1-2 min startup) by maintaining a floor of warm containers.
 
-- keep_warm=0: $0/hr idle cost, but 1-2 min cold start on first request
-- keep_warm=1: ~$4/hr H100 cost even when idle, but instant response"""
+- 0: Scale to zero when idle (cheapest, but has 1-2 min cold starts)
+- 1: Always keep 1 container running (recommended for production)
+- 2+: Keep multiple containers for high availability
+
+Cost: ~$4/hr per H100 container (~$96/day each)
+"""
+
+VOXTRAL_BUFFER_CONTAINERS: int = 0
+"""Number of extra idle containers to keep ready during active periods.
+These spin up when ANY container is active, ready to handle burst traffic.
+
+- 0: No buffer (scale on-demand only)
+- 1: Keep 1 extra container ready during active periods (recommended)
+- 2+: More buffer for very bursty traffic
+
+Example with min_containers=1, buffer_containers=1:
+- Idle: 1 container running (min_containers)
+- Request arrives: Still 1 container, but 1 more spins up as buffer
+- Burst of requests: Buffer container instantly available, more scale up as needed
+"""
 
 VOXTRAL_STARTUP_TIMEOUT_MINUTES: int = 15
 """Max time to wait for vLLM server to become ready."""

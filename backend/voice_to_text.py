@@ -95,8 +95,10 @@ _client_cache = {}
     image=vllm_image,
     gpu=f"{config.VOXTRAL_GPU_TYPE}:{config.VOXTRAL_N_GPU}",
     timeout=config.VOXTRAL_SERVER_TIMEOUT_MINUTES * config.SECONDS_PER_MINUTE,
-    # Keep containers warm to avoid cold starts (see config for trade-offs)
-    keep_warm=config.VOXTRAL_KEEP_WARM,
+    # Prevent cold starts (1m 35s startup) by keeping containers always running
+    min_containers=config.VOXTRAL_MIN_CONTAINERS,
+    # Keep extra containers ready for burst traffic
+    buffer_containers=config.VOXTRAL_BUFFER_CONTAINERS,
     volumes={
         "/root/.cache/huggingface": hf_cache_vol,
         "/root/.cache/vllm": vllm_cache_vol,
