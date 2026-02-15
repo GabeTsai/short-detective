@@ -1,9 +1,14 @@
 import sys
-sys.path.insert(0, "..")
+from pathlib import Path
+
+_backend_dir = str(Path(__file__).resolve().parent.parent)
+if _backend_dir not in sys.path:
+    sys.path.insert(0, _backend_dir)
 
 from utils import LlmRequest, call_llm
 from channel_scraper import check_channel_page
-from nonexistent import semantic_analysis, voice_to_text
+from semantic_analysis import analyze_video as semantic_analysis
+from voice_to_text import voice_to_text
 from extract_audio import extract_audio
 from openai import OpenAI
 import os
@@ -99,7 +104,7 @@ def summarize_videos(paths: list[tuple[str, str]], storage_dict) -> dict:
 
 if __name__ == "__main__":
     import time
-    '''
+
     import threading
 
     start = time.perf_counter()
@@ -107,7 +112,6 @@ if __name__ == "__main__":
     result = {}
 
     def run():
-        nonlocal result
         result = summarize_videos(
             [('videos/35KWWdck7zM.mp4', 'https://www.youtube.com/shorts/AVeuGFSSAxQ'),
              ('videos/AVeuGFSSAxQ.mp4', 'https://www.youtube.com/shorts/35KWWdck7zM')],
@@ -121,6 +125,4 @@ if __name__ == "__main__":
         print({path: "".join(chunks) for path, chunks in storage_dict.items()})
         time.sleep(3)
 
-    print("Final result:", result)
     print(time.perf_counter() - start)
-    '''

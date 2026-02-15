@@ -1,6 +1,10 @@
 from backend.semantic_analysis import analyze_video, analyze_video_quick
+from dotenv import load_dotenv
 import os
 import sys
+
+# Load .env from project root
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
 def test_semantic_analysis():
     # Get API key from environment

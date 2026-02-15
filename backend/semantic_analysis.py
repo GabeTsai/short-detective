@@ -12,7 +12,7 @@ import time
 
 import google.generativeai as genai
 
-from backend.config import (
+from config import (
     GEMINI_MODEL_VIDEO,
     SEMANTIC_ANALYSIS_PROMPT,
     SEMANTIC_ANALYSIS_QUICK_PROMPT,
