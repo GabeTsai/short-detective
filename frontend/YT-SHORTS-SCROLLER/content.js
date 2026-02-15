@@ -433,16 +433,16 @@ This content represents a well-executed example of trend-based Shorts creation.`
     let html = `<div style="margin-bottom: 6px; position: relative;">
   <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 0;">
     <span style="font-family: 'Libre Baskerville', Georgia, serif; font-size: 15px; font-weight: 700; color: #000;">Mismatch Level</span>
-    ${infoBubble("Assessed by comparing the video's content with its implied claims to determine if the footage matches what it represents.")}
+    ${infoBubble("Assessed by comparing the video's content with our agents' sources and internal analyses.")}
   </div>
   <div style="font-family: 'Libre Baskerville', Georgia, serif; font-size: 26px; font-weight: 700; color: ${levelColor(mLevel)}; margin-top: 0;">${mLevel}</div>
 </div>`;
 
     // Section headers paired with paragraphs
     const sections = [
-      ["Video Risk",        vLevel, paragraphs[0] || "", "Determined by evaluating signs of manipulation, deepfakes, fabricated claims, or harmful misinformation."],
+      ["Video Risk",        vLevel, paragraphs[0] || "", "Determined by evaluating the chance that the video was AI generated or was stitched together misleadingly."],
       ["Context Risk",      cLevel, paragraphs[1] || "", "Based on whether missing background information could distort meaning or mislead viewers."],
-      ["Presentation Risk", pLevel, paragraphs[2] || "", "Evaluated by analyzing editing style, tone, and framing for manipulative intent."]
+      ["Presentation Risk", pLevel, paragraphs[2] || "", "Evaluated by analyzing editing style, tone, and framing for signs of manipulation tactics."]
     ];
 
     for (const [label, level, para, tooltip] of sections) {

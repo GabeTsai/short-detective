@@ -54,19 +54,19 @@ def _process_single_video(path: str, url: str, storage_dict: dict) -> tuple[str,
 
         # Wait for all subtasks to complete (60s timeout each)
         try:
-            transcription = transcription_future.result(timeout=60)
+            transcription = transcription_future.result(timeout=40)
         except Exception as e:
             print(e)
             transcription = "Transcription timed out"
 
         try:
-            channel_page_info = channel_future.result(timeout=60)
+            channel_page_info = channel_future.result(timeout=40)
         except Exception as e:
             print(e)
             channel_page_info = "Channel info timed out"
 
         try:
-            semantic_analysis_info = semantic_future.result(timeout=60)
+            semantic_analysis_info = semantic_future.result(timeout=40)
         except Exception as e:
             print(e)
             semantic_analysis_info = "Semantic analysis timed out"
