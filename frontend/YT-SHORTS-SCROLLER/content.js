@@ -311,6 +311,83 @@ This content represents a well-executed example of trend-based Shorts creation.`
   };
   */
 
+  // ---------- Analysis Formatter ----------
+  const LEVEL_COLORS = {
+    "low": "#2ecc71",
+    "moderate": "#e6b800",
+    "medium": "#e6b800",
+    "high": "#cc0000",
+    "very high": "#8b0000"
+  };
+
+  function levelColor(level) {
+    return LEVEL_COLORS[level.toLowerCase()] || "#1a1a1a";
+  }
+
+  function infoBubble(tip) {
+    return `<span class="ytss-info-btn" style="display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background: #e0e0e0; color: #666; font-size: 11px; font-weight: 700; cursor: pointer; position: relative; user-select: none;" onclick="(function(el){var tip=el.querySelector('.ytss-info-tooltip');if(tip.style.display==='block'){tip.style.display='none';}else{tip.style.display='block';}})(this)">?<span class="ytss-info-tooltip" style="display: none; position: absolute; top: -8px; left: 26px; width: 220px; background: #555; color: #fff; font-size: 12px; font-weight: 400; padding: 10px 12px; border-radius: 8px; line-height: 1.5; z-index: 10; font-family: 'Libre Baskerville', Georgia, serif; box-shadow: 0 2px 8px rgba(0,0,0,0.18);">${tip}</span></span>`;
+  }
+
+  function formatAnalysis(text) {
+    if (!text || typeof text !== "string") return text || "";
+
+    const lines = text.split("\n");
+
+    // Try to match the structured format
+    const mismatchMatch = lines[0]?.match(/^Mismatch level:\s*(.+)/i);
+    const videoMatch    = lines[1]?.match(/^Video Risk:\s*(.+)/i);
+    const contextMatch  = lines[2]?.match(/^Context Risk:\s*(.+)/i);
+    const presentMatch  = lines[3]?.match(/^Presentation Risk:\s*(.+)/i);
+
+    // If not our format, return as-is
+    if (!mismatchMatch) return text;
+
+    const mLevel = mismatchMatch[1].trim();
+    const vLevel = videoMatch?.[1]?.trim() || "";
+    const cLevel = contextMatch?.[1]?.trim() || "";
+    const pLevel = presentMatch?.[1]?.trim() || "";
+
+    // Everything after the 4 header lines, split into paragraphs
+    const bodyText = lines.slice(4).join("\n").trim();
+    const paragraphs = bodyText.split(/\n\n+/);
+
+    // Mismatch Level header
+    let html = `<div style="margin-bottom: 6px; position: relative;">
+  <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 0;">
+    <span style="font-family: 'Libre Baskerville', Georgia, serif; font-size: 15px; font-weight: 700; color: #000;">Mismatch Level</span>
+    ${infoBubble("We judged the mismatch level with xyz procedures.")}
+  </div>
+  <div style="font-family: 'Libre Baskerville', Georgia, serif; font-size: 26px; font-weight: 700; color: ${levelColor(mLevel)}; margin-top: 0;">${mLevel}</div>
+</div>`;
+
+    // Section headers paired with paragraphs
+    const sections = [
+      ["Video Risk",        vLevel, paragraphs[0] || ""],
+      ["Context Risk",      cLevel, paragraphs[1] || ""],
+      ["Presentation Risk", pLevel, paragraphs[2] || ""]
+    ];
+
+    for (const [label, level, para] of sections) {
+      const escapedPara = para.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      html += `
+<div style="display: flex; align-items: center; gap: 6px; margin: 8px 0 4px 0;">
+  <span style="color: #1a1a1a; font-size: 17px; font-family: 'Libre Baskerville', Georgia, serif; font-weight: 700;">${label}: <span style="color: ${levelColor(level)};">${level}</span></span>
+  ${infoBubble("Explanation of " + label.toLowerCase() + " assessment.")}
+</div>
+<div style="margin-bottom: 4px;">${escapedPara}</div>`;
+    }
+
+    // If there are extra paragraphs beyond the 3 expected, append them
+    if (paragraphs.length > 3) {
+      for (let i = 3; i < paragraphs.length; i++) {
+        const extra = paragraphs[i].replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        html += `<div style="margin-top: 8px;">${extra}</div>`;
+      }
+    }
+
+    return html;
+  }
+
   function renderAnalysisResults(results) {
     const body = analysisPanel.querySelector("#ytss-analysis-body");
     if (!body) return;
@@ -324,9 +401,10 @@ This content represents a well-executed example of trend-based Shorts creation.`
 
     let html = "";
     for (const [url, analysis] of entries) {
+      const formatted = formatAnalysis(analysis);
       html += `
         <div class="ytss-analysis-card">
-          <div class="ytss-analysis-text">${analysis}</div>
+          <div class="ytss-analysis-text">${formatted}</div>
         </div>
       `;
     }
