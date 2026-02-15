@@ -48,17 +48,20 @@ def _process_single_video(path: str, url: str, storage_dict: dict) -> tuple[str,
         # Wait for all subtasks to complete (60s timeout each)
         try:
             transcription = transcription_future.result(timeout=60)
-        except TimeoutError:
+        except Exception as e:
+            print(e)
             transcription = "Transcription timed out"
 
         try:
             channel_page_info = channel_future.result(timeout=60)
-        except TimeoutError:
+        except Exception as e:
+            print(e)
             channel_page_info = "Channel info timed out"
 
         try:
             semantic_analysis_info = semantic_future.result(timeout=60)
-        except TimeoutError:
+        except Exception as e:
+            print(e)
             semantic_analysis_info = "Semantic analysis timed out"
 
     system_prompt = """
@@ -74,7 +77,7 @@ def _process_single_video(path: str, url: str, storage_dict: dict) -> tuple[str,
     When giving explanation, donn't use anything like "Presentation risk explanation:". Simply jump straight into the explanation.
     Consider internal analyses as statements that are highly likely to be true. Refer to semantic analysis as Google Gemini's analysis, 
     and channel page info as the information found on the channel page. Do not refer to ambigious internal 
-    terms, and only use the above terms when referring to the internal analyses.
+    terms, and only use the above terms when referring to the internal analyses. When making claims related to perplexity, add the sources (links) as well. 
     Perplexity Results: {transcription[:10000]}
     Channel page info: {channel_page_info[:10000]}
     Semantic analysis: {semantic_analysis_info[:10000]}
