@@ -293,9 +293,7 @@
     if (!isValidYouTubeVideoId(videoId)) return;
           
     const canonicalUrl = `https://www.youtube.com/shorts/${videoId}`;
-          const originalCanonical = canonicalShortsUrl(originalVideoUrl);
-    if (canonicalUrl === originalCanonical || collectedUrls.has(canonicalUrl))
-      return;
+    if (collectedUrls.has(canonicalUrl)) return;
 
             collectedUrls.add(canonicalUrl);
             collectedInThisCycle++;
@@ -356,9 +354,6 @@
       }
     }
 
-    // Collect the last URL after loop ends
-    collectCurrentUrl();
-
     if (collectedInThisCycle >= 8) {
       updateDebug("Collected 8 URLs! Scrolling back...");
       updatePopupProgress("Scrolling back...");
@@ -399,7 +394,7 @@
       startUserScrollTracking();
 
       if (isFirstCycle) isFirstCycle = false;
-      updateDebug("Watching... (0/9 scrolled)");
+      updateDebug("Watching... (0/8 scrolled)");
     } else {
       // Didn't collect enough — still need to clean up
       console.log(`[YTSS] Only collected ${collectedInThisCycle}/8 — ending cycle`);
@@ -486,14 +481,14 @@
     userVisitedInPhase.add(currentUrl);
 
     userScrollCount++;
-    updateDebug(`Watching... (${userScrollCount}/9 scrolled)`);
-    console.log(`[YTSS] User scroll ${userScrollCount}/9`);
+    updateDebug(`Watching... (${userScrollCount}/8 scrolled)`);
+    console.log(`[YTSS] User scroll ${userScrollCount}/8`);
 
-    if (userScrollCount >= 9) {
+    if (userScrollCount >= 8) {
       trackingUserScrolls = false;
       const viewingTime = Date.now() - viewingStartTime;
       console.log(
-        `[YTSS] User watched 9 reels in ${Math.round(viewingTime / 1000)}s`
+        `[YTSS] User watched 8 reels in ${Math.round(viewingTime / 1000)}s`
       );
       triggerNextCycle(viewingTime);
     }
