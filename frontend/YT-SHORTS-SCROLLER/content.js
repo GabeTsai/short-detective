@@ -102,13 +102,38 @@
     root.id = "ytss-analysis-root";
     root.innerHTML = `
       <div id="ytss-analysis-panel">
-        <div id="ytss-analysis-header">Analysis Results</div>
+        <div id="ytss-analysis-header">
+          <span>Sauce, Please?</span>
+          <button id="ytss-toggle" title="Start collection">&#9654;</button>
+        </div>
         <div id="ytss-analysis-body">
-          <div class="ytss-analysis-empty">Analysis results will appear here after URLs are collected...</div>
+          <div class="ytss-analysis-empty">Press play to start collecting and analyzing shorts...</div>
         </div>
       </div>
     `;
     document.documentElement.appendChild(root);
+
+    // Toggle button — start/stop collection
+    let running = false;
+    const toggleBtn = root.querySelector("#ytss-toggle");
+    toggleBtn.addEventListener("click", () => {
+      if (!running) {
+        running = true;
+        toggleBtn.innerHTML = "&#9632;";  // ■ stop icon
+        toggleBtn.title = "Stop collection";
+        toggleBtn.classList.add("ytss-toggle-active");
+        bootstrap();
+        startAnalysisPolling();
+        startUrlCollection();
+      } else {
+        running = false;
+        toggleBtn.innerHTML = "&#9654;";  // ▶ play icon
+        toggleBtn.title = "Start collection";
+        toggleBtn.classList.remove("ytss-toggle-active");
+        stopUrlCollection();
+      }
+    });
+
     return root;
   }
 
@@ -163,7 +188,11 @@
     if (loader) loader.remove();
     }
   
-    // ---------- UI Injection ----------
+    // ==========================================================
+    // COMMENTED OUT: Left debug panel (collector UI)
+    // This was used for debugging. Kept here for reference.
+    // ==========================================================
+    /*
     function injectUI() {
       if (document.getElementById("ytss-root")) {
         return document.getElementById("ytss-root");
@@ -216,17 +245,15 @@
   
       return root;
     }
-  
-    const ui = injectUI();
+    */
+    // END COMMENTED OUT: Left debug panel
+    // ==========================================================
+
+    // Null-safe stubs so the rest of the code doesn't crash
     const els = {
-      start: ui.querySelector("#ytss-start"),
-      stop: ui.querySelector("#ytss-stop"),
-      status: ui.querySelector("#ytss-status"),
-      count: ui.querySelector("#ytss-count"),
-      log: ui.querySelector("#ytss-log"),
-      debug: ui.querySelector("#ytss-debug"),
-      copy: ui.querySelector("#ytss-copy"),
-      clear: ui.querySelector("#ytss-clear")
+      start: null, stop: null, status: null,
+      count: null, log: null, debug: null,
+      copy: null, clear: null
     };
   
     // ---------- State ----------
@@ -250,7 +277,7 @@
   
     // ---------- UI helpers ----------
     function setStatus(s) {
-      els.status.textContent = s;
+      if (els.status) els.status.textContent = s;
     }
   
     function renderQueue(queueArray) {
@@ -264,7 +291,7 @@
         els.log.value = allCollectedUrlsPersistent.join("\n");
       els.log.scrollTop = els.log.scrollHeight;
       }
-      els.count.textContent = String(allCollectedUrlsPersistent.length);
+      if (els.count) els.count.textContent = String(allCollectedUrlsPersistent.length);
     }
 
     function updateDebug(msg) {
@@ -598,7 +625,10 @@
       }
     });
   
-    // ---------- Buttons ----------
+    // ==========================================================
+    // COMMENTED OUT: Button event listeners for left debug panel
+    // ==========================================================
+    /*
     els.start.addEventListener("click", () => {
       els.start.disabled = true;
       els.stop.disabled = false;
@@ -630,6 +660,11 @@
       els.count.textContent = "0";
       setStatus("idle");
     });
+    */
+    // END COMMENTED OUT: Button event listeners
+    // ==========================================================
+
+    // Collection is started/stopped via the toggle button in the analysis panel header
   
   // ---------- Analysis Polling (every 3s) ----------
   let lastAnalysisUrl = null;
@@ -660,6 +695,5 @@
     }, 3000);
   }
 
-  // Auto-bootstrap on load
-    bootstrap();
+  // (Auto-start is handled above after button listeners section)
   })();

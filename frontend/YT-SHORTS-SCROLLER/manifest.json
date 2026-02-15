@@ -4,6 +4,7 @@
     "version": "0.2.0",
     "permissions": ["storage", "tabs", "scripting"],
     "host_permissions": ["https://www.youtube.com/*", "http://localhost:8080/*"],
+    
     "background": { "service_worker": "background.js" },
     "content_scripts": [
       {
@@ -11,6 +12,12 @@
         "js": ["content.js"],
         "css": ["ui.css"],
         "run_at": "document_idle"
+      }
+    ],
+    "web_accessible_resources": [
+      {
+        "resources": ["LibreBaskerville-Bold.ttf"],
+        "matches": ["https://www.youtube.com/*"]
       }
     ]
   }
