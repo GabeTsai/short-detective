@@ -24,14 +24,12 @@
       keyCode: keyCodeMap[key], which: keyCodeMap[key],
       bubbles: true, cancelable: true, view: window
     };
-    const down = new KeyboardEvent("keydown", opts);
-    const up = new KeyboardEvent("keyup", opts);
-    document.dispatchEvent(down);
-    document.dispatchEvent(up);
-    if (document.activeElement && document.activeElement !== document) {
-      document.activeElement.dispatchEvent(new KeyboardEvent("keydown", opts));
-      document.activeElement.dispatchEvent(new KeyboardEvent("keyup", opts));
-      }
+    // Dispatch to ONE target only — bubbles:true ensures document handlers see it.
+    // Previously we dispatched to BOTH document AND activeElement, which caused
+    // YouTube to receive 2 keydown events and scroll TWICE per call.
+    const target = document.activeElement || document.body || document;
+    target.dispatchEvent(new KeyboardEvent("keydown", opts));
+    target.dispatchEvent(new KeyboardEvent("keyup", opts));
     }
   
     function canonicalShortsUrl(href) {
@@ -348,12 +346,14 @@
       collectCurrentUrl();
       if (collectedInThisCycle >= 8) break;
 
-      scrollCount++;
       const before = canonicalShortsUrl(location.href);
       dispatchKey("ArrowDown");
       const changed = await waitForUrlChange(before, 280);
-      if (!changed)
-        console.log(`[YTSS] ↓ ${scrollCount}: no change in 280ms`);
+      if (changed) {
+        scrollCount++;
+      } else {
+        console.log(`[YTSS] ↓ scroll attempt: no change in 280ms`);
+      }
     }
 
     // Collect the last URL after loop ends
@@ -399,7 +399,7 @@
       startUserScrollTracking();
 
       if (isFirstCycle) isFirstCycle = false;
-      updateDebug("Watching... (0/8 scrolled)");
+      updateDebug("Watching... (0/9 scrolled)");
     } else {
       // Didn't collect enough — still need to clean up
       console.log(`[YTSS] Only collected ${collectedInThisCycle}/8 — ending cycle`);
@@ -414,26 +414,43 @@
     const targetUrl = canonicalShortsUrl(originalVideoUrl);
       console.log(`[YTSS] Scrolling back to: ${targetUrl}`);
 
-    for (let i = 0; i < 12; i++) {
+    let consecutiveFails = 0;
+
+    for (let i = 0; i < 16; i++) {
       // Check BEFORE scrolling
       if (canonicalShortsUrl(location.href) === targetUrl) {
         updateDebug("Returned to start ✓");
         return true;
       }
 
+      focusPlayer();
       const before = canonicalShortsUrl(location.href);
         dispatchKey("ArrowUp");
-      const changed = await waitForUrlChange(before, 400);
+      const changed = await waitForUrlChange(before, 1200);
 
       if (!changed) {
-        console.log(`[YTSS] ⬆ ${i + 1}: no URL change — may be at top`);
-        // If URL didn't change, check if we landed on target after the attempt
+        consecutiveFails++;
+        console.log(`[YTSS] ⬆ ${i + 1}: no URL change (fail ${consecutiveFails}/3)`);
+
         if (canonicalShortsUrl(location.href) === targetUrl) {
           updateDebug("Returned to start ✓");
           return true;
         }
-        break; // Can't scroll further up
+
+        // Only give up after 3 consecutive failures, not 1
+        if (consecutiveFails >= 3) {
+          console.log(`[YTSS] 3 consecutive up-scroll failures — stopping`);
+            break;
+          }
+          
+        // Wait and retry instead of immediately breaking
+        await sleep(300);
+        continue;
       }
+
+      // Successful scroll — reset fail counter
+      consecutiveFails = 0;
+      await sleep(200);
     }
 
     // Final check
@@ -469,14 +486,14 @@
     userVisitedInPhase.add(currentUrl);
 
     userScrollCount++;
-    updateDebug(`Watching... (${userScrollCount}/8 scrolled)`);
-    console.log(`[YTSS] User scroll ${userScrollCount}/8`);
+    updateDebug(`Watching... (${userScrollCount}/9 scrolled)`);
+    console.log(`[YTSS] User scroll ${userScrollCount}/9`);
 
-    if (userScrollCount >= 8) {
+    if (userScrollCount >= 9) {
       trackingUserScrolls = false;
       const viewingTime = Date.now() - viewingStartTime;
       console.log(
-        `[YTSS] User watched 8 reels in ${Math.round(viewingTime / 1000)}s`
+        `[YTSS] User watched 9 reels in ${Math.round(viewingTime / 1000)}s`
       );
       triggerNextCycle(viewingTime);
     }
@@ -484,8 +501,8 @@
 
   // ---------- Cycle Management ----------
   function triggerNextCycle(viewingTime) {
-    if (!isCollecting) return;
-
+      if (!isCollecting) return;
+      
     // Show summary popup
     showPopup("summary", { viewingTime });
 
