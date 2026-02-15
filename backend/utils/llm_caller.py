@@ -2,6 +2,9 @@ from dataclasses import dataclass
 import os
 import base64
 
+# Cache for API clients (keyed by (provider, api_key))
+_google_client_cache: dict[str, any] = {}
+
 
 @dataclass
 class LlmRequest:
@@ -42,7 +45,12 @@ def _call_openai(info: LlmRequest) -> str:
 def _call_google(info: LlmRequest) -> str:
     from google import genai
 
-    client = genai.Client(api_key=os.environ["GOOGLE_API_KEY"])
+    api_key = os.environ["GOOGLE_API_KEY"]
+    
+    # Get or create cached client
+    if api_key not in _google_client_cache:
+        _google_client_cache[api_key] = genai.Client(api_key=api_key)
+    client = _google_client_cache[api_key]
 
     contents = [info.instructions]
     for image_path in info.images:

@@ -10,13 +10,16 @@ from pathlib import Path
 from typing import Optional
 import time
 
-import google.generativeai as genai
+from google import genai
 
 from config import (
     GEMINI_MODEL_VIDEO,
     SEMANTIC_ANALYSIS_PROMPT,
     SEMANTIC_ANALYSIS_QUICK_PROMPT,
 )
+
+# Cache for Gemini client instances (keyed by API key)
+_client_cache: dict[str, genai.Client] = {}
 
 def get_formatted_result(analysis: str, video_file: Path, video_path: str, model_name: str) -> str:
     return f"""
@@ -39,6 +42,7 @@ def analyze_video(
     api_key: Optional[str] = None,
     model_name: Optional[str] = None,
     custom_prompt: Optional[str] = None,
+    channel_context: Optional[dict] = None,
 ) -> str:
     """
     Analyze a video file using Google Gemini API with focus on detecting concerning content.
@@ -48,12 +52,14 @@ def analyze_video(
     - Propaganda and manipulation techniques
     - Agenda-pushing and bias
     - Conspiracy theories and extremism
+    - AI-generated content indicators
     
     Args:
         video_path: Path to the MP4 video file to analyze
         api_key: Google AI API key. If None, reads from GEMINI_API_KEY environment variable
         model_name: Gemini model to use. If None, uses GEMINI_MODEL_VIDEO from config
         custom_prompt: Optional custom prompt for analysis. If None, uses SEMANTIC_ANALYSIS_PROMPT
+        channel_context: Optional dict with channel info (name, description, keywords, recent_titles)
         
     Returns:
         Formatted string containing detailed video analysis with risk assessment
@@ -79,20 +85,22 @@ def analyze_video(
             "GEMINI_API_KEY not found. Please provide api_key parameter or set GEMINI_API_KEY environment variable"
         )
     
-    # Configure Gemini API
-    genai.configure(api_key=api_key)
+    # Get or create cached Gemini client
+    if api_key not in _client_cache:
+        _client_cache[api_key] = genai.Client(api_key=api_key)
+    client = _client_cache[api_key]
     
     # Upload video file
     start = time.time()
     print(f"Uploading video: {video_file.name}...")
-    video_file_obj = genai.upload_file(path=str(video_file))
+    video_file_obj = client.files.upload(file=str(video_file))
     end = time.time()
     print(f"Video uploaded in {end - start} seconds")
 
     print("Processing video...")
     while video_file_obj.state.name == "PROCESSING":
         time.sleep(2)
-        video_file_obj = genai.get_file(video_file_obj.name)
+        video_file_obj = client.files.get(name=video_file_obj.name)
     
     if video_file_obj.state.name == "FAILED":
         raise Exception(f"Video processing failed: {video_file_obj.state}")
@@ -100,14 +108,55 @@ def analyze_video(
     print("Video ready for analysis...")
     
     # Use default prompt from config if not specified
-    prompt = custom_prompt if custom_prompt is not None else SEMANTIC_ANALYSIS_PROMPT
+    base_prompt = custom_prompt if custom_prompt is not None else SEMANTIC_ANALYSIS_PROMPT
     
-    # Create model and generate analysis
-    model = genai.GenerativeModel(model_name=model_name)
+    # Add channel context to prompt if provided
+    if channel_context:
+        print(f"[Semantic Analysis] Using channel context for: {channel_context.get('channel_name')} ({channel_context.get('channel_url')})")
+        channel_context_text = f"""
+# Channel Context (for AI Detection & Pattern Analysis)
+
+Before analyzing the video, consider this channel information:
+
+**Channel Name:** {channel_context.get('channel_name', 'Unknown')}
+**Channel URL:** {channel_context.get('channel_url', 'Unknown')}
+
+**Channel Description:**
+{channel_context.get('description', 'Not available')}
+
+**Keywords:** {channel_context.get('keywords', 'Not available')}
+
+**Recent Video/Short Titles:**
+{chr(10).join(f"- {title}" for title in channel_context.get('recent_titles', [])[:5]) or 'Not available'}
+
+---
+
+**IMPORTANT for AI-Generated Content Detection:**
+- If the channel description explicitly mentions "AI", "AI-generated", "synthetic media", or "artificial intelligence" in the context of content creation, this is a STRONG indicator the video may be AI-generated
+- If recent video titles show patterns of sensationalized or fabricated news (e.g., "fake shooting", "fake hospitalization", clickbait about celebrities), this indicates untrustworthiness
+- When channel context suggests AI generation, look MORE CAREFULLY for subtle visual artifacts:
+  * Unnatural lighting or harsh shadows
+  * Lip-sync issues or exaggerated mouth movements
+  * Slightly unnatural body movements or gestures
+  * Synthetic-looking skin textures or backgrounds
+  * Overly smooth or plasticky facial features
+
+---
+
+Now analyze the video with this context in mind:
+
+"""
+        prompt = channel_context_text + base_prompt
+    else:
+        prompt = base_prompt
     
+    # Generate analysis
     print("Generating analysis...")
     start = time.time()
-    response = model.generate_content([video_file_obj, prompt])
+    response = client.models.generate_content(
+        model=model_name,
+        contents=[video_file_obj, prompt]
+    )
     end = time.time()
     print(f"Analysis generated in {end - start} seconds")
     # Format the result
@@ -118,7 +167,7 @@ def analyze_video(
     
     # Clean up uploaded file
     try:
-        genai.delete_file(video_file_obj.name)
+        client.files.delete(name=video_file_obj.name)
         print("Cleaned up uploaded file from Gemini servers")
     except Exception as e:
         print(f"Warning: Could not delete uploaded file: {e}")

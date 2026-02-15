@@ -7,6 +7,7 @@ import urllib.request
 from pathlib import Path
 from dotenv import load_dotenv
 from openai import OpenAI
+from config import CHANNEL_CONTEXT_MAX_VIDEOS
 
 # Load .env from root folder
 root_dir = Path(__file__).resolve().parent.parent.parent
@@ -16,7 +17,7 @@ load_dotenv(root_dir / ".env")
 def get_channel_from_short(short_url):
     """Extract channel URL and info from a YouTube Shorts URL using yt-dlp."""
     result = subprocess.run(
-        ["yt-dlp", "--dump-json", "--no-download", short_url],
+        ["yt-dlp", "--dump-json", "--no-download", "--no-cache-dir", short_url],
         capture_output=True, text=True
     )
     if result.returncode != 0:
@@ -24,13 +25,80 @@ def get_channel_from_short(short_url):
         sys.exit(1)
 
     data = json.loads(result.stdout)
-    return {
+    channel_info = {
         "channel_name": data.get("channel"),
         "channel_id": data.get("channel_id"),
         "channel_url": data.get("channel_url"),
         "uploader": data.get("uploader"),
         "uploader_url": data.get("uploader_url"),
     }
+    print(f"[Channel Scraper] Short: {short_url} -> Channel: {channel_info.get('channel_name')} ({channel_info.get('channel_url')})")
+    return channel_info
+
+
+def get_lightweight_channel_context(short_url, max_recent_videos=CHANNEL_CONTEXT_MAX_VIDEOS):
+    """
+    Get minimal channel context for semantic analysis (fast, ~2-3 seconds).
+    Returns just the description and a few recent video titles.
+    """
+    try:
+        # Get channel URL from the short
+        channel_info = get_channel_from_short(short_url)
+        channel_url = channel_info["channel_url"]
+        
+        # Get channel description (fast - just metadata)
+        about_url = channel_url.rstrip("/") + "/about"
+        req = urllib.request.Request(about_url, headers={
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+            "Accept-Language": "en-US,en;q=0.9",
+        })
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            html = resp.read().decode("utf-8")
+        
+        # Extract description
+        match = re.search(r"var ytInitialData\s*=\s*({.*?});\s*</script>", html)
+        description = ""
+        keywords = ""
+        if match:
+            yt_data = json.loads(match.group(1))
+            md = yt_data.get("metadata", {}).get("channelMetadataRenderer", {})
+            description = md.get("description", "")
+            keywords = md.get("keywords", "")
+        
+        # Get a few recent video/shorts titles (fast - flat playlist)
+        recent_titles = []
+        for tab in ["shorts", "videos"]:
+            try:
+                tab_url = channel_url.rstrip("/") + "/" + tab
+                result = subprocess.run(
+                    ["yt-dlp", "--dump-json", "--flat-playlist", "--no-cache-dir", "--playlist-end", str(max_recent_videos), tab_url],
+                    capture_output=True, text=True, timeout=5
+                )
+                if result.returncode == 0:
+                    for line in result.stdout.strip().split("\n")[:max_recent_videos]:
+                        if line:
+                            entry = json.loads(line)
+                            recent_titles.append(entry.get("title", ""))
+                    break  # Just get from first available tab
+            except:
+                continue
+        
+        context = {
+            "channel_name": channel_info.get("channel_name", ""),
+            "channel_url": channel_url,  # Include URL for verification
+            "channel_id": channel_info.get("channel_id", ""),
+            "description": description,
+            "keywords": keywords,
+            "recent_titles": recent_titles[:max_recent_videos],
+            "short_url": short_url  # Add short_url for debugging
+        }
+        print(f"[Lightweight Context] Fetched for {channel_info.get('channel_name')}: {len(description)} char description, {len(recent_titles)} titles")
+        return context
+    except Exception as e:
+        print(f"Warning: Could not fetch lightweight channel context for {short_url}: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
 
 
 def scrape_channel_about(channel_url):
@@ -113,7 +181,7 @@ def scrape_channel_videos(channel_url, limit=10):
 
         result = subprocess.run(
             [
-                "yt-dlp", "--dump-json", "--flat-playlist",
+                "yt-dlp", "--dump-json", "--flat-playlist", "--no-cache-dir",
                 "--playlist-end", str(limit),
                 tab_url,
             ],

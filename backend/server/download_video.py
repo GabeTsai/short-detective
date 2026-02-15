@@ -114,23 +114,29 @@ def download_video_max_720p(url, download_path="videos", duration=30):
 def download_videos_batch(urls, download_path="videos", n=10, duration=30):
     """
     Downloads the first `duration` seconds of multiple videos in parallel using n threads.
-    Returns a list of downloaded filenames (None for failures).
+    Returns a list of downloaded filenames in the same order as input URLs.
     """
-    filenames = []
+    # Map each URL to its future to preserve order
     with ThreadPoolExecutor(max_workers=n) as executor:
         futures = {
             executor.submit(download_video_max_720p, url, download_path, duration): url
             for url in urls
         }
+        
+        # Collect results mapped by URL
+        url_to_filename = {}
         for future in as_completed(futures):
             url = futures[future]
             try:
                 name = future.result()
                 if name is not None:
-                    filenames.append(os.path.join(download_path, name))
+                    url_to_filename[url] = os.path.join(download_path, name)
             except Exception as e:
                 print(f"Failed for {url}: {e}")
-    return filenames
+        
+        # Return filenames in the same order as input URLs
+        filenames = [url_to_filename[url] for url in urls if url in url_to_filename]
+        return filenames
 
 
 if __name__ == "__main__":

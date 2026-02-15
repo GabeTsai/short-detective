@@ -6,10 +6,11 @@ if _backend_dir not in sys.path:
     sys.path.insert(0, _backend_dir)
 
 from utils import LlmRequest, call_llm
-from channel_scraper import check_channel_page
+from channel_scraper import check_channel_page, get_lightweight_channel_context
 from semantic_analysis_real import analyze_video as semantic_analysis
 from voice_to_text_real import voice_to_text
 from extract_audio import extract_audio
+from config import CHANNEL_CONTEXT_MAX_VIDEOS
 from openai import OpenAI
 import os
 from pathlib import Path
@@ -34,7 +35,13 @@ def _process_single_video(path: str, url: str, storage_dict: dict) -> tuple[str,
 
     def semantic_info():
         try:
-            return semantic_analysis(path, os.environ["GOOGLE_API_KEY"])
+            # Fetch lightweight channel context for AI detection
+            channel_ctx = get_lightweight_channel_context(url, max_recent_videos=CHANNEL_CONTEXT_MAX_VIDEOS)
+            return semantic_analysis(
+                path, 
+                os.environ["GOOGLE_API_KEY"],
+                channel_context=channel_ctx
+            )
         except Exception as e:
             print(e)
             return "None"
@@ -80,7 +87,11 @@ def _process_single_video(path: str, url: str, storage_dict: dict) -> tuple[str,
     terms, and only use the above terms when referring to the internal analyses. 
     Perplexity Results: {transcription[:10000]}
     Channel page info: {channel_page_info[:10000]}
-    Semantic analysis: {semantic_analysis_info[:10000]}
+    Semantic analysis from Google Gemini: {semantic_analysis_info[:10000]}
+    
+    CRITICAL: You MUST provide a complete response following the FULL format below, even if Perplexity returned no sources. 
+    Use the semantic analysis from Google Gemini, and the channel page info to assess the video regardless of whether external sources are available.
+    
     Your response should be formatted like this: 
 
     Mismatch level: [Low/Medium/High/Very High]
@@ -94,7 +105,10 @@ def _process_single_video(path: str, url: str, storage_dict: dict) -> tuple[str,
     [Explanation for presentation risk (how is the video presented? Is there music that sets a specific mood, clickbait behavior, fear selling, etc.)]
 
     Learn more: 
-    [Here, list all the links perplexity returned. After each link, add a short explanation of why it's relevant to the video. Use a numbered list for each link]
+    [Check if Perplexity returned any sources by looking for "Total Sources Found:" in the Perplexity Results above]
+    [If ZERO sources: Write "No external sources available for fact-checking." IN THE LEARN MORE SECTION ONLY.]
+    [If sources ARE present: List them as a numbered list with brief explanations of relevance]
+    [Do NOT include meta-links about transcript validation or credibility assessment methods]
     """
 
     client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])

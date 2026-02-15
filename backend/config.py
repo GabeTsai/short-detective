@@ -122,6 +122,11 @@ def get_transcription_url() -> Optional[str]:
 GEMINI_MODEL_VIDEO: str = "gemini-3-flash-preview"
 """Gemini model for video analysis with multimodal support."""
 
+CHANNEL_CONTEXT_MAX_VIDEOS: int = 5
+"""Maximum number of recent video/short titles to fetch for channel context in semantic analysis.
+Higher values provide more pattern detection (e.g., sensationalized titles) but take slightly longer.
+Recommended: 5-10 for balance between speed (~2-3s) and context quality."""
+
 SEMANTIC_ANALYSIS_PROMPT: str = """
 # Short-Form Video Integrity Analysis Prompt (Evidence-Based & Bias-Constrained)
 
@@ -334,23 +339,35 @@ PERPLEXITY_SEARCH_TYPE: str = "auto"
 Note: Pro Search requires streaming to be enabled.
 """
 
-WEB_SEARCH_SYSTEM_PROMPT: str = """You are a fact-checking assistant analyzing potentially misleading or misinformation content from social media videos.
+WEB_SEARCH_SYSTEM_PROMPT: str = """You are a fact-checking assistant analyzing potentially misleading or misinformation content from short-form social media videos.
 
-Your task is to search the web for reliable information about the claims made in the transcript and assess their credibility.
+You will be given a video transcript. Your task is to determine whether the transcript contains specific claims that can be investigated or verified using external evidence. If it does, search the web for reliable, authoritative sources that provide relevant context, supporting evidence, or contradictions regarding those claims, and assess their credibility.
 
-For each relevant web source you find:
-1. Provide the URL
-2. Write 1-3 sentences explaining whether this source INCREASES or DECREASES the legitimacy of the transcript's claims
-3. Be specific about which claims are supported or contradicted
+CRITICAL: If any of the following conditions apply:
 
-Focus on finding authoritative sources like:
+- The transcript is garbled, corrupted, incomplete, or unavailable  
+- The transcript contains no meaningful spoken content (e.g., only music, sound effects, or filler speech)  
+- The transcript does not contain identifiable claims that can be investigated using external sources
+- The transcript is entertainment content without factual claims (e.g., reactions, commentary, jokes)
+
+You MUST:
+1. Return an EMPTY results list: "results": []
+2. Set "total_found": 0
+3. Provide a brief explanation in the summary field
+4. DO NOT search for meta-information about transcripts, transcript validation, or credibility assessment methods
+5. DO NOT return links to articles about how transcripts work
+6. DO NOT return ANY links unless the transcript contains actual verifiable claims
+
+Only proceed with web research when there are concrete, investigable factual claims present in the transcript that can be verified against external sources.
+
+When you do find verifiable claims, focus on finding authoritative sources like:
 - Peer-reviewed scientific studies
 - Medical institutions (NIH, WHO, Mayo Clinic, etc.)
 - Fact-checking organizations (Snopes, FactCheck.org, etc.)
 - Reputable news organizations
 - Academic institutions
 
-Return 5-7 of the most relevant sources (or fewer if you can't find enough reliable information)."""
+Return 5-7 of the most relevant sources only when there are actual claims to verify."""
 
 WEB_SEARCH_MAX_RESULTS: int = 7
 """Maximum number of web search results to return."""
@@ -367,17 +384,25 @@ def get_web_search_user_prompt(transcript: str, max_results: int) -> str:
     Returns:
         Formatted user prompt string
     """
-    return f"""Analyze this video transcript and find {max_results} reliable web sources that help assess its credibility:
+    return f"""Analyze this video transcript. First, determine if it contains verifiable factual claims. If it does, find up to {max_results} reliable web sources that help assess the claims' credibility. If it does NOT contain verifiable claims, return an empty results list.
 
 TRANSCRIPT:
 {transcript}
 
-For each source, provide:
+IMPORTANT: 
+- If the transcript is garbled, incomplete, entertainment-only, or contains no verifiable claims, return EMPTY results
+- DO NOT search for information about transcript validation methods
+- DO NOT return meta-links about credibility assessment
+- ONLY return sources that directly address factual claims made in the transcript
+
+For each source (ONLY if there are verifiable claims), provide:
 1. The URL
 2. A brief assessment (1-3 sentences) of whether it INCREASES or DECREASES the legitimacy of the transcript
 3. Indicate clearly if it supports or contradicts the claims
 
 Return your response in the following JSON format:
+
+If there ARE verifiable claims:
 {{
     "results": [
         {{
@@ -388,5 +413,12 @@ Return your response in the following JSON format:
     ],
     "summary": "Overall brief assessment of transcript legitimacy based on sources found",
     "total_found": 5
+}}
+
+If there are NO verifiable claims (garbled, entertainment-only, etc.):
+{{
+    "results": [],
+    "summary": "No verifiable factual claims found in transcript. Content appears to be [entertainment/garbled/incomplete/etc.]",
+    "total_found": 0
 }}"""
 
