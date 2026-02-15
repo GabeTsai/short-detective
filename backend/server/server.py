@@ -84,7 +84,7 @@ def get_info(url: str):
     if video_id in cache:
         return {"message": cache[video_id]}
     else:
-        return {"message": f"Video {video_id} not in cache"}
+        return {"message": f"Loading..."}
 
     return {"message": "Loading...", "is_streaming": True}
 

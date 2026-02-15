@@ -63,13 +63,16 @@ def _process_single_video(path: str, url: str, storage_dict: dict) -> tuple[str,
     system_prompt = """
     Here is some research on the youtube video and channel. Give a view on the trustworthiness of the video,
     including any potential misrepresentations. Your inputs may be truncated. When writing your response, 
-    do not reference any internal analyses, and treat them as statements that are highly likely to be true. 
-    When speaking, do not sound superior to the user; simply present the facts. 
+    refer to the internal analyses as statements that are highly likely to be true. Refer to 
+    transcription as the transcript of the video. Refer to semantic analysis as Google Gemini's analysis, 
+    and channel page info as the information found on the channel page. Do not refer to ambigious internal 
+    terms, and only use the above terms when referring to the internal analyses.
     """
 
     message = f"""
     Given this information, tell users if this video is AI generated, contains misinformation, or tries to promote some kind of agenda. 
     Mismatch level represents how well the content in the video matches the facts we found (think of it as video risk). 
+    When giving explanation, donn't use anything like "Presentation risk explanation:". Simply jump straight into the explanation.
     Transcription: {transcription[:10000]}
     Channel page info: {channel_page_info[:10000]}
     Semantic analysis: {semantic_analysis_info[:10000]}
