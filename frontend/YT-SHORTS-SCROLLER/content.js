@@ -154,7 +154,17 @@
       </div>`;
   }
 
+  let wasMutedBeforePopup = false;
+
   function showPopup(type, data = {}) {
+    // Mute all videos during overlay
+    const videos = document.querySelectorAll("video");
+    wasMutedBeforePopup = false;
+    videos.forEach(v => {
+      if (!v.muted) wasMutedBeforePopup = false;
+      v.muted = true;
+    });
+
     const title = popupOverlay.querySelector("#ytss-popup-title");
     const chart = popupOverlay.querySelector("#ytss-popup-chart");
 
@@ -196,6 +206,9 @@
   function hidePopup() {
     popupOverlay.classList.remove("ytss-popup-visible");
     stopTipRotation();
+    // Restore video mute state on all videos
+    const videos = document.querySelectorAll("video");
+    videos.forEach(v => v.muted = wasMutedBeforePopup);
     }
 
   // ---------- Analysis Panel ----------
@@ -367,6 +380,13 @@ This content represents a well-executed example of trend-based Shorts creation.`
     return LEVEL_COLORS[level.toLowerCase()] || "#1a1a1a";
   }
 
+  function linkifyUrls(text) {
+    return text.replace(
+      /(https?:\/\/[^\s<]+)/g,
+      '<a href="$1" target="_blank" rel="noopener" style="color: #3498db; text-decoration: underline; word-break: break-all;">$1</a>'
+    );
+  }
+
   function infoBubble(tip) {
     return `<span class="ytss-info-btn" style="display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background: #e0e0e0; color: #666; font-size: 11px; font-weight: 700; cursor: pointer; position: relative; user-select: none;" onclick="(function(el){var tip=el.querySelector('.ytss-info-tooltip');if(tip.style.display==='block'){tip.style.display='none';}else{tip.style.display='block';}})(this)">?<span class="ytss-info-tooltip" style="display: none; position: absolute; top: -8px; left: 26px; width: 220px; background: #555; color: #fff; font-size: 12px; font-weight: 400; padding: 10px 12px; border-radius: 8px; line-height: 1.5; z-index: 10; font-family: 'Libre Baskerville', Georgia, serif; box-shadow: 0 2px 8px rgba(0,0,0,0.18);">${tip}</span></span>`;
   }
@@ -383,7 +403,7 @@ This content represents a well-executed example of trend-based Shorts creation.`
     const presentMatch  = lines[3]?.match(/^Presentation Risk:\s*(.+)/i);
 
     // If not our format, return as-is
-    if (!mismatchMatch) return text;
+    if (!mismatchMatch) return linkifyUrls(text.replace(/</g, "&lt;").replace(/>/g, "&gt;"));
 
     const mLevel = mismatchMatch[1].trim();
     const vLevel = videoMatch?.[1]?.trim() || "";
@@ -411,7 +431,7 @@ This content represents a well-executed example of trend-based Shorts creation.`
     ];
 
     for (const [label, level, para, tooltip] of sections) {
-      const escapedPara = para.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      const escapedPara = linkifyUrls(para.replace(/</g, "&lt;").replace(/>/g, "&gt;"));
       html += `
 <div style="display: flex; align-items: center; gap: 6px; margin: 8px 0 4px 0;">
   <span style="color: #1a1a1a; font-size: 17px; font-family: 'Libre Baskerville', Georgia, serif; font-weight: 700;">${label}: <span style="color: ${levelColor(level)};">${level}</span></span>
@@ -423,7 +443,7 @@ This content represents a well-executed example of trend-based Shorts creation.`
     // If there are extra paragraphs beyond the 3 expected, append them
     if (paragraphs.length > 3) {
       for (let i = 3; i < paragraphs.length; i++) {
-        const extra = paragraphs[i].replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        const extra = linkifyUrls(paragraphs[i].replace(/</g, "&lt;").replace(/>/g, "&gt;"));
         html += `<div style="margin-top: 8px;">${extra}</div>`;
       }
     }
