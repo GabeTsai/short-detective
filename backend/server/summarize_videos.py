@@ -7,8 +7,8 @@ if _backend_dir not in sys.path:
 
 from utils import LlmRequest, call_llm
 from channel_scraper import check_channel_page
-from semantic_analysis import analyze_video as semantic_analysis
-from voice_to_text import voice_to_text
+from semantic_analysis_real import analyze_video as semantic_analysis
+from voice_to_text_real import voice_to_text
 from extract_audio import extract_audio
 from openai import OpenAI
 import os
@@ -84,7 +84,7 @@ def _process_single_video(path: str, url: str, storage_dict: dict) -> tuple[str,
     Presentation Risk: [Low/Medium/High/Very High]
 
 
-    [Explanation for how you got the video risk rating (is it AI generated, clips stitched together misleadingly, etc.)]
+    [Explanation for how you got the video risk rating (is it AI generated, clips stitched together misleadingly, etc.). In this and following sections, give the actual explanation, not this exact text]
     [Explanation for context risk (what context do we need to know to understand the video? Are there any scientific studies taken out of context, misrepresentation of facts, etc.)]
     [Explanation for presentation risk (how is the video presented? Is there music that sets a specific mood, clickbait behavior, fear selling, etc.)]
     """
