@@ -45,7 +45,7 @@ import modal
 __all__ = ["app", "voice_to_text", "transcribe", "serve", "clear_client_cache"]
 
 # Import config - will work locally and in Modal after we add it to the image
-import config
+from . import config
 
 # Container: Build from CUDA base following the exact working pattern from HuggingFace
 # See: https://huggingface.co/mistralai/Voxtral-Mini-4B-Realtime-2602/discussions/15
