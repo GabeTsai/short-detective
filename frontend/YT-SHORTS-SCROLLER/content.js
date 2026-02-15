@@ -68,6 +68,7 @@
     overlay.innerHTML = `
       <div id="ytss-popup-content">
         <div id="ytss-popup-title"></div>
+        <div id="ytss-popup-chart"></div>
         <div id="ytss-popup-tips"></div>
         <div id="ytss-popup-loader">
           <div class="ytss-spinner"></div>
@@ -126,15 +127,62 @@
     }
   }
 
+  function buildBarChart(shortTimes) {
+    if (!shortTimes || shortTimes.length === 0) return "";
+
+    const maxSec = Math.max(...shortTimes.map(s => s.seconds), 1);
+    const chartHeight = 160; // px
+
+    let barsHtml = "";
+    for (let i = 0; i < shortTimes.length; i++) {
+      const { url, seconds } = shortTimes[i];
+      const level = mismatchLevels.get(url);
+      const color = level ? levelColor(level) : "#555";
+      const barHeight = Math.max(4, Math.round((seconds / maxSec) * chartHeight));
+
+      barsHtml += `
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1;">
+          <span style="font-family: 'Libre Baskerville', Georgia, serif; font-size: 11px; color: rgba(255,255,255,0.6);">${seconds}s</span>
+          <div style="width: 28px; height: ${barHeight}px; background: ${color}; border-radius: 4px 4px 0 0; transition: height 0.3s ease;"></div>
+          <span style="font-family: 'Libre Baskerville', Georgia, serif; font-size: 10px; color: rgba(255,255,255,0.35);">${i + 1}</span>
+        </div>`;
+    }
+
+    return `
+      <div style="display: flex; align-items: flex-end; justify-content: center; gap: 8px; margin-top: 16px; margin-bottom: 12px; height: ${chartHeight + 40}px;">
+        ${barsHtml}
+      </div>`;
+  }
+
   function showPopup(type, data = {}) {
     const title = popupOverlay.querySelector("#ytss-popup-title");
+    const chart = popupOverlay.querySelector("#ytss-popup-chart");
 
     if (type === "welcome") {
       title.textContent = "Sauce, Please?";
+      title.style.color = "#fff";
+      chart.innerHTML = "";
       startTipRotation();
     } else if (type === "summary") {
       const seconds = Math.round((data.viewingTime || 0) / 1000);
       title.textContent = `${seconds}s on the last 8 reels`;
+
+      // Color title by the mismatch level with the most cumulative time
+      const timeByLevel = {};
+      for (const { url, seconds: sec } of (data.shortTimes || [])) {
+        const level = mismatchLevels.get(url) || "unknown";
+        timeByLevel[level] = (timeByLevel[level] || 0) + sec;
+      }
+      let maxLevel = null, maxTime = 0;
+      for (const [level, time] of Object.entries(timeByLevel)) {
+        if (time > maxTime && level !== "unknown") {
+          maxTime = time;
+          maxLevel = level;
+        }
+      }
+      title.style.color = maxLevel ? levelColor(maxLevel) : "#fff";
+
+      chart.innerHTML = buildBarChart(data.shortTimes || []);
       startTipRotation();
     }
 
@@ -512,6 +560,20 @@ This content represents a well-executed example of trend-based Shorts creation.`
   let viewingStartTime = null;
   let trackingUserScrolls = false;
   let userVisitedInPhase = new Set();
+
+  // Per-short time tracking for bar chart
+  let perShortTimes = [];    // array of { url, seconds }
+  let lastScrollTime = null;
+  let lastScrollUrl = null;
+
+  // Mismatch level cache (url -> "Low"|"Medium"|"High"|"Very High")
+  const mismatchLevels = new Map();
+
+  function extractAndCacheMismatch(url, text) {
+    if (!text || typeof text !== "string") return;
+    const match = text.match(/^Mismatch level:\s*(.+)/im);
+    if (match) mismatchLevels.set(url, match[1].trim());
+  }
   
     // ---------- UI helpers ----------
     function setStatus(s) {
@@ -640,6 +702,9 @@ This content represents a well-executed example of trend-based Shorts creation.`
             console.error("[YTSS] Backend send error:", chrome.runtime.lastError);
           } else if (res?.ok && res.analysis) {
             console.log("[YTSS] ✓ Batch sent + analysis received");
+            for (const [url, text] of Object.entries(res.analysis)) {
+              extractAndCacheMismatch(url, text);
+            }
             renderAnalysisResults(res.analysis);
           } else if (res?.ok) {
             console.log("[YTSS] ✓ Batch sent (no analysis returned)");
@@ -730,9 +795,13 @@ This content represents a well-executed example of trend-based Shorts creation.`
   function startUserScrollTracking() {
     userScrollCount = 0;
     userVisitedInPhase.clear();
-    // Add the starting video so it doesn't count
-    userVisitedInPhase.add(canonicalShortsUrl(location.href));
+    perShortTimes = [];
+    const startUrl = canonicalShortsUrl(location.href);
+    // Add the starting video so it doesn't count as a scroll
+    userVisitedInPhase.add(startUrl);
     viewingStartTime = Date.now();
+    lastScrollTime = Date.now();
+    lastScrollUrl = startUrl;
     trackingUserScrolls = true;
   }
 
@@ -745,26 +814,42 @@ This content represents a well-executed example of trend-based Shorts creation.`
     if (userVisitedInPhase.has(currentUrl)) return;
     userVisitedInPhase.add(currentUrl);
 
+    // Record time spent on the previous short
+    const now = Date.now();
+    if (lastScrollUrl) {
+      perShortTimes.push({
+        url: lastScrollUrl,
+        seconds: Math.round((now - lastScrollTime) / 1000)
+      });
+    }
+    lastScrollTime = now;
+    lastScrollUrl = currentUrl;
+
     userScrollCount++;
     updateDebug(`Watching... (${userScrollCount}/8 scrolled)`);
     console.log(`[YTSS] User scroll ${userScrollCount}/8`);
 
     if (userScrollCount >= 8) {
       trackingUserScrolls = false;
+      // Record time on the final (8th) short
+      perShortTimes.push({
+        url: lastScrollUrl,
+        seconds: Math.round((Date.now() - lastScrollTime) / 1000)
+      });
       const viewingTime = Date.now() - viewingStartTime;
       console.log(
         `[YTSS] User watched 8 reels in ${Math.round(viewingTime / 1000)}s`
       );
-      triggerNextCycle(viewingTime);
+      triggerNextCycle(viewingTime, perShortTimes);
     }
   }
 
   // ---------- Cycle Management ----------
-  function triggerNextCycle(viewingTime) {
+  function triggerNextCycle(viewingTime, shortTimes = []) {
       if (!isCollecting) return;
       
-    // Show summary popup
-    showPopup("summary", { viewingTime });
+    // Show summary popup with per-short data
+    showPopup("summary", { viewingTime, shortTimes });
 
     // Start collection from user's current position
     originalVideoUrl = canonicalShortsUrl(location.href);
@@ -926,6 +1011,7 @@ This content represents a well-executed example of trend-based Shorts creation.`
           if (chrome.runtime.lastError) return;
           if (res?.ok && res.message) {
             lastAnalysisUrl = currentUrl;
+            extractAndCacheMismatch(currentUrl, res.message);
             renderAnalysisResults({ [currentUrl]: res.message });
           }
         }

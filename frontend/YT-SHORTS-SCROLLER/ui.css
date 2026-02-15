@@ -164,6 +164,12 @@ END COMMENTED OUT: Collector Panel (LEFT)
   line-height: 1.15;
 }
 
+/* Bar chart */
+#ytss-popup-chart {
+  width: 100%;
+  max-width: 420px;
+}
+
 /* Tip carousel */
 #ytss-popup-tips {
   width: 500px;
